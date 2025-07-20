@@ -15,11 +15,10 @@ from fpdf import FPDF
 load_dotenv()
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-
 # Streamlit setup
 st.set_page_config(page_title="Docudant – Contract & Offer Review AI", layout="wide")
 st.title("📄 Docudant: Your AI-Powered Document Reviewer")
-st.markdown("Upload a supported document for AI review. Outputs are saved locally.")
+st.markdown("Effortlessly review contracts and offer letters with AI. Download annotated reports instantly.")
 
 # Session state for history
 if "history" not in st.session_state:
@@ -67,10 +66,9 @@ def ocr_pdf_with_pymupdf(file):
                 pix = page.get_pixmap(dpi=300)
                 img = Image.open(BytesIO(pix.tobytes("png")))
                 text += pytesseract.image_to_string(img)
-            except Exception:
+            except:
                 text += "\n[OCR Skipped: Tesseract is not installed in this environment]\n"
     return text
-
 
 # GPT prompt helper
 def ask_gpt(prompt, model="gpt-4", temperature=0.4):
@@ -119,7 +117,10 @@ if uploaded_file:
 
         for section, prompt in sections.items():
             st.subheader(section)
-            response = ask_gpt(prompt + "\n\n" + text, model=model_choice)
+            try:
+                response = ask_gpt(prompt + "\n\n" + text, model=model_choice)
+            except Exception as e:
+                response = f"⚠️ Error: {str(e)}"
             st.text_area(section, response, height=300)
             output_sections[section] = response
 
@@ -127,7 +128,10 @@ if uploaded_file:
         st.subheader("Custom Question")
         user_q = st.text_input("Ask a question about the document")
         if user_q:
-            answer = ask_gpt(f"Document type: {document_type}\n\nDocument:\n{text}\n\nQuestion: {user_q}", model=model_choice)
+            try:
+                answer = ask_gpt(f"Document type: {document_type}\n\nDocument:\n{text}\n\nQuestion: {user_q}", model=model_choice)
+            except Exception as e:
+                answer = f"⚠️ Error: {str(e)}"
             st.text_area("Answer", answer, height=200)
 
         # Save everything as PDF
@@ -179,7 +183,11 @@ if old_doc and new_doc:
     if not new_text.strip():
         new_text = ocr_pdf_with_pymupdf(new_doc)
 
-    diff_prompt = f"Compare these two versions of a {document_type} and highlight all meaningful differences in clauses, responsibilities, compensation, and obligations.\n\n--- OLD VERSION ---\n{old_text}\n\n--- NEW VERSION ---\n{new_text}"
-    comparison = ask_gpt(diff_prompt, model=model_choice)
+    try:
+        diff_prompt = f"Compare these two versions of a {document_type} and highlight all meaningful differences in clauses, responsibilities, compensation, and obligations.\n\n--- OLD VERSION ---\n{old_text}\n\n--- NEW VERSION ---\n{new_text}"
+        comparison = ask_gpt(diff_prompt, model=model_choice)
+    except Exception as e:
+        comparison = f"⚠️ Error: {str(e)}"
+
     st.subheader("Comparison Result")
     st.text_area("Differences", comparison, height=300)
