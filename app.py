@@ -17,8 +17,8 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 
 # Streamlit setup
-st.set_page_config(page_title="AI Document Review Agent (Final)", layout="wide")
-st.title("📄 AI Document Review Agent (Final)")
+st.set_page_config(page_title="Docudant – Contract & Offer Review AI", layout="wide")
+st.title("📄 Docudant: Your AI-Powered Document Reviewer")
 st.markdown("Upload a supported document for AI review. Outputs are saved locally.")
 
 # Session state for history
