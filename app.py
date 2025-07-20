@@ -63,10 +63,14 @@ def ocr_pdf_with_pymupdf(file):
         if blocks and any(block[4].strip() for block in blocks):
             text += page.get_text()
         else:
-            pix = page.get_pixmap(dpi=300)
-            img = Image.open(BytesIO(pix.tobytes("png")))
-            text += pytesseract.image_to_string(img)
+            try:
+                pix = page.get_pixmap(dpi=300)
+                img = Image.open(BytesIO(pix.tobytes("png")))
+                text += pytesseract.image_to_string(img)
+            except Exception:
+                text += "\n[OCR Skipped: Tesseract is not installed in this environment]\n"
     return text
+
 
 # GPT prompt helper
 def ask_gpt(prompt, model="gpt-4", temperature=0.4):
