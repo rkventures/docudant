@@ -13,7 +13,8 @@ from fpdf import FPDF
 
 # Load environment and OpenAI client
 load_dotenv()
-client = OpenAI()
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
 
 # Streamlit setup
 st.set_page_config(page_title="AI Document Review Agent (Final)", layout="wide")
