@@ -13,7 +13,8 @@ from fpdf import FPDF
 
 # Load environment and OpenAI client
 load_dotenv()
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
 
 # Streamlit UI setup
 st.set_page_config(page_title="Docudant – Contract & Offer Review AI", layout="wide")
