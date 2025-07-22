@@ -10,26 +10,41 @@ from openai import OpenAI, AuthenticationError
 from dotenv import load_dotenv
 import base64
 from fpdf import FPDF
+from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
 
-# Load environment and OpenAI client
+# ---------------------- FastAPI Backend ----------------------
+api = FastAPI()
+
+api.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Replace * with frontend URL in prod
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@api.post("/upload/")
+async def upload_file(file: UploadFile = File(...)):
+    contents = await file.read()
+    return {"filename": file.filename, "size": len(contents)}
+
+# ---------------------- Load Env ----------------------
 load_dotenv()
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-
-# Streamlit UI setup
+# ---------------------- Streamlit App ----------------------
 st.set_page_config(page_title="Docudant – Contract & Offer Review AI", layout="wide")
 st.title("📄 Docudant – Contract & Offer Review AI")
 st.markdown("_Analyze contracts, offer letters, NDAs, leases & more – with instant AI insights._")
 st.markdown("Upload a supported document for AI review. Outputs are saved locally.")
 
-# Session state for history
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# Model selector
 model_choice = st.radio("Select model", ["gpt-4", "gpt-3.5-turbo"], horizontal=True)
 
-# Document type selector
 document_type = st.selectbox("Select document type:", [
     "Contract", "Offer Letter", "Employment Agreement", "NDA",
     "Equity Grant", "Lease Agreement", "MSA", "Freelance / Custom Agreement"
@@ -183,3 +198,7 @@ if old_doc and new_doc:
     comparison = ask_gpt(diff_prompt, model=model_choice)
     st.subheader("Comparison Result")
     st.text_area("Differences", comparison, height=300)
+
+# --- Uvicorn entrypoint ---
+if __name__ == "__main__":
+    uvicorn.run("app:api", host="0.0.0.0", port=8000)
