@@ -7,3 +7,5 @@ Pillow
 pdfplumber
 fpdf
 pymupdf
+fastapi
+uvicorn
