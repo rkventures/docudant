@@ -16,10 +16,9 @@ import uvicorn
 
 # ---------------------- FastAPI Backend ----------------------
 api = FastAPI()
-
 api.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Replace * with frontend URL in prod
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -43,14 +42,14 @@ st.markdown("Upload a supported document for AI review. Outputs are saved locall
 if "history" not in st.session_state:
     st.session_state.history = []
 
-model_choice = st.radio("Select model", ["gpt-4", "gpt-3.5-turbo"], horizontal=True, key="model_choice")
+model_choice = st.radio("Select model", ["gpt-4", "gpt-3.5-turbo"], horizontal=True, key="model_choice_main")
 
 document_type = st.selectbox("Select document type:", [
     "Contract", "Offer Letter", "Employment Agreement", "NDA",
     "Equity Grant", "Lease Agreement", "MSA", "Freelance / Custom Agreement"
 ])
 
-st.markdown("""\n💡 **Examples of documents this tool can analyze:**
+st.markdown("""ℹ️ **Examples of documents this tool can analyze:**
 - Freelance and consulting contracts  
 - Startup equity offers and RSU agreements  
 - Lease and rental agreements  
@@ -72,18 +71,18 @@ def extract_text_from_pdf(file):
 
 def ocr_pdf_with_pymupdf(file):
     text = ""
-    doc = fitz.open(stream=file.read(), filetype="pdf")
-    for page in doc:
-        blocks = page.get_text("blocks")
-        if blocks and any(block[4].strip() for block in blocks):
-            text += page.get_text()
-        else:
-            try:
+    try:
+        doc = fitz.open(stream=file.read(), filetype="pdf")
+        for page in doc:
+            blocks = page.get_text("blocks")
+            if blocks and any(block[4].strip() for block in blocks):
+                text += page.get_text()
+            else:
                 pix = page.get_pixmap(dpi=300)
                 img = Image.open(BytesIO(pix.tobytes("png")))
                 text += pytesseract.image_to_string(img)
-            except Exception as e:
-                text += "[OCR Skipped: Tesseract is not installed in this environment]"
+    except Exception as e:
+        text += f"[OCR Error: {e}]"
     return text
 
 # --- GPT Prompting ---
@@ -98,23 +97,15 @@ def ask_gpt(prompt, model="gpt-4", temperature=0.4):
     except AuthenticationError as e:
         return f"⚠️ Error: {e}"
 
-# --- PDF Helper ---
-def sanitize_for_pdf(text):
-    replacements = {
-        '\u2018': "'", '\u2019': "'",  # smart single quotes
-        '\u201C': '"', '\u201D': '"',  # smart double quotes
-        '\u2013': '-', '\u2014': '-',  # en/em dash
-    }
-    return ''.join(replacements.get(c, c if ord(c) < 256 else '?') for c in text)
-
+# --- Save as PDF ---
 def save_as_pdf(text, filename):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_font("Arial", size=12)
-    sanitized_text = sanitize_for_pdf(text)
-    for line in sanitized_text.split('\n'):
-        pdf.multi_cell(0, 10, line)
+    for line in text.split('\n'):
+        safe_line = line.encode('latin-1', 'replace').decode('latin-1')
+        pdf.multi_cell(0, 10, safe_line)
     pdf.output(filename)
 
 # --- Main Analyzer ---
@@ -166,7 +157,7 @@ if uploaded_file:
 
         with open(filename, "rb") as file:
             b64 = base64.b64encode(file.read()).decode()
-            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">📅 Download PDF Summary</a>'
+            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">📥 Download PDF Summary</a>'
             st.markdown(href, unsafe_allow_html=True)
 
         st.session_state.history.append({
@@ -190,7 +181,8 @@ if st.session_state.history:
 
 # --- Document Comparison ---
 st.markdown("---")
-st.header("🔚 Compare Document Versions (Optional)")
+st.header("🆚 Compare Document Versions (Optional)")
+model_choice_2 = st.radio("Select model for comparison", ["gpt-4", "gpt-3.5-turbo"], horizontal=True, key="model_choice_compare")
 old_doc = st.file_uploader("Upload previous version", type=["pdf"], key="old")
 new_doc = st.file_uploader("Upload current version", type=["pdf"], key="new")
 
@@ -204,7 +196,7 @@ if old_doc and new_doc:
         new_text = ocr_pdf_with_pymupdf(new_doc)
 
     diff_prompt = f"Compare these two versions of a {document_type} and highlight all meaningful differences in clauses, responsibilities, compensation, and obligations.\n\n--- OLD VERSION ---\n{old_text}\n\n--- NEW VERSION ---\n{new_text}"
-    comparison = ask_gpt(diff_prompt, model=model_choice)
+    comparison = ask_gpt(diff_prompt, model=model_choice_2)
     st.subheader("Comparison Result")
     st.text_area("Differences", comparison, height=300)
 
