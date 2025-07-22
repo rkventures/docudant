@@ -1,6 +1,6 @@
 import os
 import re
-import fitz
+import fitz  # PyMuPDF
 import pytesseract
 import streamlit as st
 from PIL import Image
@@ -12,8 +12,6 @@ import base64
 from fpdf import FPDF
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-import uvicorn
 
 # ---------------------- FastAPI Backend ----------------------
 api = FastAPI()
@@ -29,19 +27,9 @@ api.add_middleware(
 @api.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
     contents = await file.read()
-    text = extract_text_from_pdf(BytesIO(contents))
-    if not text.strip():
-        text = ocr_pdf_with_pymupdf(BytesIO(contents))
+    return {"filename": file.filename, "size": len(contents)}
 
-    if not text.strip():
-        return JSONResponse(
-            status_code=400,
-            content={"error": "Could not extract any readable text from the uploaded file. Please upload a clearer document or contact support."}
-        )
-
-    return {"filename": file.filename, "size": len(contents), "preview": text[:500]}
-
-# ---------------------- Load Env ----------------------
+# ---------------------- Load Environment ----------------------
 load_dotenv()
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
@@ -54,12 +42,12 @@ st.markdown("Upload a supported document for AI review. Outputs are saved locall
 if "history" not in st.session_state:
     st.session_state.history = []
 
-model_choice = st.radio("Select model", ["gpt-4", "gpt-3.5-turbo"], horizontal=True)
+model_choice = st.radio("Select model", ["gpt-4", "gpt-3.5-turbo"], horizontal=True, key="model_select")
 
 document_type = st.selectbox("Select document type:", [
     "Contract", "Offer Letter", "Employment Agreement", "NDA",
     "Equity Grant", "Lease Agreement", "MSA", "Freelance / Custom Agreement"
-])
+], key="doc_type")
 
 st.markdown("""ℹ️ **Examples of documents this tool can analyze:**
 - Freelance and consulting contracts  
@@ -69,7 +57,7 @@ st.markdown("""ℹ️ **Examples of documents this tool can analyze:**
 - Custom one-off agreements  
 """)
 
-uploaded_file = st.file_uploader("Upload your PDF document", type=["pdf"], label_visibility="collapsed")
+uploaded_file = st.file_uploader("Upload your PDF document", type=["pdf"], label_visibility="collapsed", key="file_uploader")
 
 # --- Text Extraction ---
 def extract_text_from_pdf(file):
@@ -126,8 +114,8 @@ if uploaded_file:
     if not text.strip():
         text = ocr_pdf_with_pymupdf(BytesIO(file_bytes))
 
-    if not text.strip():
-        st.error("No text could be extracted from the uploaded PDF. Please try another file or check scan quality.")
+    if not text:
+        st.error("No text could be extracted from the uploaded PDF.")
     else:
         st.markdown("### 📄 Document Preview")
         st.text_area("Preview", text, height=300)
@@ -153,7 +141,7 @@ if uploaded_file:
 
         # Custom question
         st.subheader("Custom Question")
-        user_q = st.text_input("Ask a question about the document")
+        user_q = st.text_input("Ask a question about the document", key="custom_q")
         if user_q:
             answer = ask_gpt(f"Document type: {document_type}\n\nDocument:\n{text}\n\nQuestion: {user_q}", model=model_choice)
             st.text_area("Answer", answer, height=200)
@@ -168,7 +156,7 @@ if uploaded_file:
 
         with open(filename, "rb") as file:
             b64 = base64.b64encode(file.read()).decode()
-            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">📅 Download PDF Summary</a>'
+            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">📥 Download PDF Summary</a>'
             st.markdown(href, unsafe_allow_html=True)
 
         st.session_state.history.append({
@@ -192,9 +180,9 @@ if st.session_state.history:
 
 # --- Document Comparison ---
 st.markdown("---")
-st.header("🔚 Compare Document Versions (Optional)")
-old_doc = st.file_uploader("Upload previous version", type=["pdf"], key="old")
-new_doc = st.file_uploader("Upload current version", type=["pdf"], key="new")
+st.header("🆚 Compare Document Versions (Optional)")
+old_doc = st.file_uploader("Upload previous version", type=["pdf"], key="old_doc")
+new_doc = st.file_uploader("Upload current version", type=["pdf"], key="new_doc")
 
 if old_doc and new_doc:
     old_text = extract_text_from_pdf(old_doc)
@@ -210,6 +198,5 @@ if old_doc and new_doc:
     st.subheader("Comparison Result")
     st.text_area("Differences", comparison, height=300)
 
-# --- Uvicorn entrypoint ---
-if __name__ == "__main__":
-    uvicorn.run("app:api", host="0.0.0.0", port=8000)
+# NOTE: Do NOT run uvicorn server here during Streamlit execution
+# This should only be used when deploying as API with uvicorn directly
