@@ -12,6 +12,7 @@ import base64
 from fpdf import FPDF
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import uvicorn
 
 # ---------------------- FastAPI Backend ----------------------
@@ -28,7 +29,17 @@ api.add_middleware(
 @api.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
     contents = await file.read()
-    return {"filename": file.filename, "size": len(contents)}
+    text = extract_text_from_pdf(BytesIO(contents))
+    if not text.strip():
+        text = ocr_pdf_with_pymupdf(BytesIO(contents))
+
+    if not text.strip():
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Could not extract any readable text from the uploaded file. Please upload a clearer document or contact support."}
+        )
+
+    return {"filename": file.filename, "size": len(contents), "preview": text[:500]}
 
 # ---------------------- Load Env ----------------------
 load_dotenv()
@@ -115,8 +126,8 @@ if uploaded_file:
     if not text.strip():
         text = ocr_pdf_with_pymupdf(BytesIO(file_bytes))
 
-    if not text:
-        st.error("No text could be extracted from the uploaded PDF.")
+    if not text.strip():
+        st.error("No text could be extracted from the uploaded PDF. Please try another file or check scan quality.")
     else:
         st.markdown("### 📄 Document Preview")
         st.text_area("Preview", text, height=300)
@@ -157,7 +168,7 @@ if uploaded_file:
 
         with open(filename, "rb") as file:
             b64 = base64.b64encode(file.read()).decode()
-            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">📥 Download PDF Summary</a>'
+            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">📅 Download PDF Summary</a>'
             st.markdown(href, unsafe_allow_html=True)
 
         st.session_state.history.append({
@@ -181,7 +192,7 @@ if st.session_state.history:
 
 # --- Document Comparison ---
 st.markdown("---")
-st.header("🆚 Compare Document Versions (Optional)")
+st.header("🔚 Compare Document Versions (Optional)")
 old_doc = st.file_uploader("Upload previous version", type=["pdf"], key="old")
 new_doc = st.file_uploader("Upload current version", type=["pdf"], key="new")
 
