@@ -6,18 +6,19 @@ import streamlit as st
 from PIL import Image
 from io import BytesIO
 from PyPDF2 import PdfReader
-from openai import OpenAI
+from openai import OpenAI, AuthenticationError
 from dotenv import load_dotenv
 import base64
 from fpdf import FPDF
 
 # Load environment and OpenAI client
 load_dotenv()
-client = OpenAI()
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# Streamlit setup
-st.set_page_config(page_title="AI Document Review Agent (Final)", layout="wide")
-st.title("📄 AI Document Review Agent (Final)")
+# Streamlit UI setup
+st.set_page_config(page_title="Docudant – Contract & Offer Review AI", layout="wide")
+st.title("📄 Docudant – Contract & Offer Review AI")
+st.markdown("_Analyze contracts, offer letters, NDAs, leases & more – with instant AI insights._")
 st.markdown("Upload a supported document for AI review. Outputs are saved locally.")
 
 # Session state for history
@@ -33,8 +34,7 @@ document_type = st.selectbox("Select document type:", [
     "Equity Grant", "Lease Agreement", "MSA", "Freelance / Custom Agreement"
 ])
 
-st.markdown("""
-ℹ️ **Examples of documents this tool can analyze:**
+st.markdown("""ℹ️ **Examples of documents this tool can analyze:**
 - Freelance and consulting contracts  
 - Startup equity offers and RSU agreements  
 - Lease and rental agreements  
@@ -44,7 +44,7 @@ st.markdown("""
 
 uploaded_file = st.file_uploader("Upload your PDF document", type=["pdf"], label_visibility="collapsed")
 
-# Text extraction functions
+# --- Text Extraction ---
 def extract_text_from_pdf(file):
     text = ""
     pdf_reader = PdfReader(file)
@@ -62,21 +62,27 @@ def ocr_pdf_with_pymupdf(file):
         if blocks and any(block[4].strip() for block in blocks):
             text += page.get_text()
         else:
-            pix = page.get_pixmap(dpi=300)
-            img = Image.open(BytesIO(pix.tobytes("png")))
-            text += pytesseract.image_to_string(img)
+            try:
+                pix = page.get_pixmap(dpi=300)
+                img = Image.open(BytesIO(pix.tobytes("png")))
+                text += pytesseract.image_to_string(img)
+            except Exception as e:
+                text += "[OCR Skipped: Tesseract is not installed in this environment]"
     return text
 
-# GPT prompt helper
+# --- GPT Prompting ---
 def ask_gpt(prompt, model="gpt-4", temperature=0.4):
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=temperature
-    )
-    return response.choices[0].message.content.strip()
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature
+        )
+        return response.choices[0].message.content.strip()
+    except AuthenticationError as e:
+        return f"⚠️ Error: {e}"
 
-# Save as PDF
+# --- Save as PDF ---
 def save_as_pdf(text, filename):
     pdf = FPDF()
     pdf.add_page()
@@ -86,7 +92,7 @@ def save_as_pdf(text, filename):
         pdf.multi_cell(0, 10, line)
     pdf.output(filename)
 
-# Document analyzer
+# --- Main Analyzer ---
 if uploaded_file:
     file_bytes = uploaded_file.read()
     text = extract_text_from_pdf(BytesIO(file_bytes))
@@ -118,14 +124,14 @@ if uploaded_file:
             st.text_area(section, response, height=300)
             output_sections[section] = response
 
-        # Custom question input
+        # Custom question
         st.subheader("Custom Question")
         user_q = st.text_input("Ask a question about the document")
         if user_q:
             answer = ask_gpt(f"Document type: {document_type}\n\nDocument:\n{text}\n\nQuestion: {user_q}", model=model_choice)
             st.text_area("Answer", answer, height=200)
 
-        # Save everything as PDF
+        # Save as PDF
         compiled = f"""DOCUMENT TYPE: {document_type}\nMODEL USED: {model_choice}\n\n"""
         for title, content in output_sections.items():
             compiled += f"--- {title.upper()} ---\n{content}\n\n"
@@ -135,21 +141,19 @@ if uploaded_file:
 
         with open(filename, "rb") as file:
             b64 = base64.b64encode(file.read()).decode()
-            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">Download PDF Summary</a>'
+            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">📥 Download PDF Summary</a>'
             st.markdown(href, unsafe_allow_html=True)
 
-        # Add to history
         st.session_state.history.append({
             "type": document_type,
             "text": text,
             "results": output_sections
         })
 
-# Feedback and disclaimer
+# --- Feedback and History ---
 st.markdown("💬 Found something unclear or helpful? [Click here to leave feedback](https://forms.gle/yourformlink)")
-st.markdown("\n---\n_Disclaimer: This summary is AI-generated and should not be considered legal advice._")
+st.markdown("---\n_Disclaimer: This summary is AI-generated and should not be considered legal advice._")
 
-# Saved summaries viewer
 if st.session_state.history:
     with st.expander("📚 View Saved Summaries"):
         for i, entry in enumerate(reversed(st.session_state.history[-3:])):
@@ -159,7 +163,7 @@ if st.session_state.history:
                 with st.expander(title):
                     st.markdown(content)
 
-# Compare documents
+# --- Document Comparison ---
 st.markdown("---")
 st.header("🆚 Compare Document Versions (Optional)")
 old_doc = st.file_uploader("Upload previous version", type=["pdf"], key="old")
