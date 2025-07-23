@@ -2,6 +2,7 @@ import os
 import re
 import fitz
 import pytesseract
+pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 import streamlit as st
 from PIL import Image
 from io import BytesIO
