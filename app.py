@@ -201,7 +201,3 @@ if old_doc and new_doc:
     comparison = ask_gpt(diff_prompt, model=model_choice_2)
     st.subheader("Comparison Result")
     st.text_area("Differences", comparison, height=300)
-
-# ---------------------- Uvicorn Entrypoint ----------------------
-if __name__ == "__main__" and os.getenv("RUN_MODE") == "api":
-    uvicorn.run("app:api", host="0.0.0.0", port=8000)
