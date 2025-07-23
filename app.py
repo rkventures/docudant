@@ -11,24 +11,6 @@ from openai import OpenAI, AuthenticationError
 from dotenv import load_dotenv
 import base64
 from fpdf import FPDF
-from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
-
-# ---------------------- FastAPI Backend ----------------------
-api = FastAPI()
-api.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@api.post("/upload/")
-async def upload_file(file: UploadFile = File(...)):
-    contents = await file.read()
-    return {"filename": file.filename, "size": len(contents)}
 
 # ---------------------- Load Env and Init ----------------------
 load_dotenv()
