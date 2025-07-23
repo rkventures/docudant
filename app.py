@@ -29,7 +29,7 @@ async def upload_file(file: UploadFile = File(...)):
     contents = await file.read()
     return {"filename": file.filename, "size": len(contents)}
 
-# ---------------------- Load Env ----------------------
+# ---------------------- Load Env and Init ----------------------
 load_dotenv()
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
@@ -57,9 +57,9 @@ st.markdown("""ℹ️ **Examples of documents this tool can analyze:**
 - Custom one-off agreements  
 """)
 
-uploaded_file = st.file_uploader("Upload your PDF document", type=["pdf"], label_visibility="collapsed")
+uploaded_file = st.file_uploader("Upload your PDF document", type=["pdf"], label_visibility="collapsed", key="main_upload")
 
-# --- Text Extraction ---
+# ---------------------- Text Extraction ----------------------
 def extract_text_from_pdf(file):
     text = ""
     pdf_reader = PdfReader(file)
@@ -82,10 +82,11 @@ def ocr_pdf_with_pymupdf(file):
                 img = Image.open(BytesIO(pix.tobytes("png")))
                 text += pytesseract.image_to_string(img)
     except Exception as e:
-        text += f"[OCR Error: {e}]"
+        st.error(f"OCR failed: {e}")
+        return f"[OCR Error: {e}]"
     return text
 
-# --- GPT Prompting ---
+# ---------------------- GPT Prompting ----------------------
 def ask_gpt(prompt, model="gpt-4", temperature=0.4):
     try:
         response = client.chat.completions.create(
@@ -97,7 +98,7 @@ def ask_gpt(prompt, model="gpt-4", temperature=0.4):
     except AuthenticationError as e:
         return f"⚠️ Error: {e}"
 
-# --- Save as PDF ---
+# ---------------------- Save as PDF ----------------------
 def save_as_pdf(text, filename):
     pdf = FPDF()
     pdf.add_page()
@@ -106,17 +107,18 @@ def save_as_pdf(text, filename):
     for line in text.split('\n'):
         safe_line = line.encode('latin-1', 'replace').decode('latin-1')
         pdf.multi_cell(0, 10, safe_line)
-    pdf.output(filename)
+    pdf.output(filename, 'F')
 
-# --- Main Analyzer ---
+# ---------------------- Main Analyzer ----------------------
 if uploaded_file:
     file_bytes = uploaded_file.read()
     text = extract_text_from_pdf(BytesIO(file_bytes))
     if not text.strip():
+        st.warning("PDF appears to contain no extractable text. Attempting OCR fallback...")
         text = ocr_pdf_with_pymupdf(BytesIO(file_bytes))
 
-    if not text:
-        st.error("No text could be extracted from the uploaded PDF.")
+    if not text or text.strip().startswith("[OCR Error:"):
+        st.error("❌ No readable text could be extracted from this PDF.")
     else:
         st.markdown("### 📄 Document Preview")
         st.text_area("Preview", text, height=300)
@@ -140,14 +142,14 @@ if uploaded_file:
             st.text_area(section, response, height=300)
             output_sections[section] = response
 
-        # Custom question
+        # Custom Question
         st.subheader("Custom Question")
-        user_q = st.text_input("Ask a question about the document")
+        user_q = st.text_input("Ask a question about the document", key="custom_question")
         if user_q:
             answer = ask_gpt(f"Document type: {document_type}\n\nDocument:\n{text}\n\nQuestion: {user_q}", model=model_choice)
             st.text_area("Answer", answer, height=200)
 
-        # Save as PDF
+        # Save PDF Summary
         compiled = f"""DOCUMENT TYPE: {document_type}\nMODEL USED: {model_choice}\n\n"""
         for title, content in output_sections.items():
             compiled += f"--- {title.upper()} ---\n{content}\n\n"
@@ -166,7 +168,7 @@ if uploaded_file:
             "results": output_sections
         })
 
-# --- Feedback and History ---
+# ---------------------- Feedback and History ----------------------
 st.markdown("💬 Found something unclear or helpful? [Click here to leave feedback](https://forms.gle/yourformlink)")
 st.markdown("---\n_Disclaimer: This summary is AI-generated and should not be considered legal advice._")
 
@@ -179,12 +181,12 @@ if st.session_state.history:
                 with st.expander(title):
                     st.markdown(content)
 
-# --- Document Comparison ---
+# ---------------------- Document Comparison ----------------------
 st.markdown("---")
 st.header("🆚 Compare Document Versions (Optional)")
 model_choice_2 = st.radio("Select model for comparison", ["gpt-4", "gpt-3.5-turbo"], horizontal=True, key="model_choice_compare")
-old_doc = st.file_uploader("Upload previous version", type=["pdf"], key="old")
-new_doc = st.file_uploader("Upload current version", type=["pdf"], key="new")
+old_doc = st.file_uploader("Upload previous version", type=["pdf"], key="old_upload")
+new_doc = st.file_uploader("Upload current version", type=["pdf"], key="new_upload")
 
 if old_doc and new_doc:
     old_text = extract_text_from_pdf(old_doc)
@@ -200,6 +202,6 @@ if old_doc and new_doc:
     st.subheader("Comparison Result")
     st.text_area("Differences", comparison, height=300)
 
-# --- Uvicorn entrypoint ---
-if __name__ == "__main__":
+# ---------------------- Uvicorn Entrypoint ----------------------
+if __name__ == "__main__" and os.getenv("RUN_MODE") == "api":
     uvicorn.run("app:api", host="0.0.0.0", port=8000)
