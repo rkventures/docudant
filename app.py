@@ -16,6 +16,19 @@ from fpdf import FPDF
 load_dotenv()
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
+# ---------------------- Red Flag Patterns ----------------------
+RED_FLAGS = [
+    r"at-will",
+    r"non[- ]?compete",
+    r"termination.*discretion",
+    r"subject to change",
+    r"binding arbitration",
+    r"waive.*rights",
+    r"no liability",
+    r"without notice",
+    r"not obligated"
+]
+
 # ---------------------- Streamlit App ----------------------
 st.set_page_config(page_title="Docudant – Contract & Offer Review AI", layout="wide")
 st.title("📄 Docudant – Contract & Offer Review AI")
@@ -65,9 +78,20 @@ def ocr_pdf_with_pymupdf(file):
                 img = Image.open(BytesIO(pix.tobytes("png")))
                 text += pytesseract.image_to_string(img)
     except Exception as e:
-        st.error(f"OCR failed: {e}")
         return f"[OCR Error: {e}]"
     return text
+
+# ---------------------- Highlight Red Flags ----------------------
+def highlight_red_flags(text):
+    highlighted = text
+    for pattern in RED_FLAGS:
+        highlighted = re.sub(
+            pattern,
+            lambda m: f"🔴 **{m.group(0)}**",
+            highlighted,
+            flags=re.IGNORECASE
+        )
+    return highlighted
 
 # ---------------------- GPT Prompting ----------------------
 def ask_gpt(prompt, model="gpt-4", temperature=0.4):
@@ -101,10 +125,11 @@ if uploaded_file:
         text = ocr_pdf_with_pymupdf(BytesIO(file_bytes))
 
     if not text or text.strip().startswith("[OCR Error:"):
-        st.error("❌ No readable text could be extracted from this PDF.")
+        st.error("❌ No readable text could be extracted from this PDF. Try uploading a clearer or searchable version.")
     else:
-        st.markdown("### 📄 Document Preview")
-        st.text_area("Preview", text, height=300)
+        st.markdown("### 📄 Document Preview (🔴 = flagged)")
+        highlighted = highlight_red_flags(text)
+        st.markdown(f"<div style='white-space: pre-wrap'>{highlighted}</div>", unsafe_allow_html=True)
 
         sections = {
             "Parties & Roles": f"In this {document_type}, who are the involved parties and what are their roles? Provide in plain English.",
@@ -163,24 +188,3 @@ if st.session_state.history:
             for title, content in entry["results"].items():
                 with st.expander(title):
                     st.markdown(content)
-
-# ---------------------- Document Comparison ----------------------
-st.markdown("---")
-st.header("🆚 Compare Document Versions (Optional)")
-model_choice_2 = st.radio("Select model for comparison", ["gpt-4", "gpt-3.5-turbo"], horizontal=True, key="model_choice_compare")
-old_doc = st.file_uploader("Upload previous version", type=["pdf"], key="old_upload")
-new_doc = st.file_uploader("Upload current version", type=["pdf"], key="new_upload")
-
-if old_doc and new_doc:
-    old_text = extract_text_from_pdf(old_doc)
-    if not old_text.strip():
-        old_text = ocr_pdf_with_pymupdf(old_doc)
-
-    new_text = extract_text_from_pdf(new_doc)
-    if not new_text.strip():
-        new_text = ocr_pdf_with_pymupdf(new_doc)
-
-    diff_prompt = f"Compare these two versions of a {document_type} and highlight all meaningful differences in clauses, responsibilities, compensation, and obligations.\n\n--- OLD VERSION ---\n{old_text}\n\n--- NEW VERSION ---\n{new_text}"
-    comparison = ask_gpt(diff_prompt, model=model_choice_2)
-    st.subheader("Comparison Result")
-    st.text_area("Differences", comparison, height=300)
