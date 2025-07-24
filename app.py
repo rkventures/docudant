@@ -42,7 +42,8 @@ model_choice = st.radio("Select model", ["gpt-4", "gpt-3.5-turbo"], horizontal=T
 
 document_type = st.selectbox("Select document type:", [
     "Contract", "Offer Letter", "Employment Agreement", "NDA",
-    "Equity Grant", "Lease Agreement", "MSA", "Freelance / Custom Agreement"
+    "Equity Grant", "Lease Agreement", "MSA", "Freelance / Custom Agreement",
+    "Insurance Document", "Healthcare Agreement"
 ])
 
 st.markdown("""ℹ️ **Examples of documents this tool can analyze:**
@@ -50,7 +51,8 @@ st.markdown("""ℹ️ **Examples of documents this tool can analyze:**
 - Startup equity offers and RSU agreements  
 - Lease and rental agreements  
 - Vendor NDAs and MSAs  
-- Custom one-off agreements  
+- Health plan or provider agreements  
+- Insurance policies or benefits summaries  
 """)
 
 uploaded_file = st.file_uploader("Upload your PDF document", type=["pdf"], label_visibility="collapsed", key="main_upload")
@@ -188,3 +190,24 @@ if st.session_state.history:
             for title, content in entry["results"].items():
                 with st.expander(title):
                     st.markdown(content)
+
+# ---------------------- Document Comparison ----------------------
+st.markdown("---")
+st.header("🆚 Compare Document Versions (Optional)")
+model_choice_2 = st.radio("Select model for comparison", ["gpt-4", "gpt-3.5-turbo"], horizontal=True, key="model_choice_compare")
+old_doc = st.file_uploader("Upload previous version", type=["pdf"], key="old_upload")
+new_doc = st.file_uploader("Upload current version", type=["pdf"], key="new_upload")
+
+if old_doc and new_doc:
+    old_text = extract_text_from_pdf(old_doc)
+    if not old_text.strip():
+        old_text = ocr_pdf_with_pymupdf(old_doc)
+
+    new_text = extract_text_from_pdf(new_doc)
+    if not new_text.strip():
+        new_text = ocr_pdf_with_pymupdf(new_doc)
+
+    diff_prompt = f"Compare these two versions of a {document_type} and highlight all meaningful differences in clauses, responsibilities, compensation, and obligations.\n\n--- OLD VERSION ---\n{old_text}\n\n--- NEW VERSION ---\n{new_text}"
+    comparison = ask_gpt(diff_prompt, model=model_choice_2)
+    st.subheader("Comparison Result")
+    st.text_area("Differences", comparison, height=300)
