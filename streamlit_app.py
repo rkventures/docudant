@@ -38,24 +38,35 @@ st.markdown("Upload a supported document for AI review. Outputs are saved locall
 if "history" not in st.session_state:
     st.session_state.history = []
 
-model_choice = st.radio("Select model", ["gpt-4", "gpt-3.5-turbo"], horizontal=True, key="model_choice_main")
+# ---------------------- Auto-load from last upload ----------------------
+upload_dir = "./uploads"
+latest_file_path = os.path.join(upload_dir, "last_uploaded.txt")
+last_doc_type_path = os.path.join(upload_dir, "last_doc_type.txt")
 
-document_type = st.selectbox("Select document type:", [
+uploaded_file = None
+if os.path.exists(latest_file_path):
+    with open(latest_file_path, "r") as f:
+        latest_filename = f.read().strip()
+    full_path = os.path.join(upload_dir, latest_filename)
+    if os.path.exists(full_path):
+        with open(full_path, "rb") as f:
+            uploaded_file = BytesIO(f.read())
+
+document_type = "Contract"
+if os.path.exists(last_doc_type_path):
+    with open(last_doc_type_path, "r") as f:
+        document_type = f.read().strip()
+
+model_choice = st.radio("Select model", ["gpt-4", "gpt-3.5-turbo"], horizontal=True, key="model_choice_main")
+st.selectbox("Select document type:", [
     "Contract", "Offer Letter", "Employment Agreement", "NDA",
     "Equity Grant", "Lease Agreement", "MSA", "Freelance / Custom Agreement",
     "Insurance Document", "Healthcare Agreement"
-])
+], index=0, key="doc_type_select")
 
-st.markdown("""ℹ️ **Examples of documents this tool can analyze:**
-- Freelance and consulting contracts  
-- Startup equity offers and RSU agreements  
-- Lease and rental agreements  
-- Vendor NDAs and MSAs  
-- Health plan or provider agreements  
-- Insurance policies or benefits summaries  
-""")
+st.markdown("""\n📁 **Examples of documents this tool can analyze:**\n- Freelance and consulting contracts  \n- Startup equity offers and RSU agreements  \n- Lease and rental agreements  \n- Vendor NDAs and MSAs  \n- Health plan or provider agreements  \n- Insurance policies or benefits summaries\n""")
 
-uploaded_file = st.file_uploader("Upload your PDF document", type=["pdf"], label_visibility="collapsed", key="main_upload")
+st.file_uploader("Upload your PDF document", type=["pdf"], label_visibility="collapsed", key="main_upload")
 
 # ---------------------- Text Extraction ----------------------
 def extract_text_from_pdf(file):
@@ -169,7 +180,7 @@ if uploaded_file:
 
         with open(filename, "rb") as file:
             b64 = base64.b64encode(file.read()).decode()
-            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">📥 Download PDF Summary</a>'
+            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">📅 Download PDF Summary</a>'
             st.markdown(href, unsafe_allow_html=True)
 
         st.session_state.history.append({
@@ -193,7 +204,7 @@ if st.session_state.history:
 
 # ---------------------- Document Comparison ----------------------
 st.markdown("---")
-st.header("🆚 Compare Document Versions (Optional)")
+st.header("🔚 Compare Document Versions (Optional)")
 model_choice_2 = st.radio("Select model for comparison", ["gpt-4", "gpt-3.5-turbo"], horizontal=True, key="model_choice_compare")
 old_doc = st.file_uploader("Upload previous version", type=["pdf"], key="old_upload")
 new_doc = st.file_uploader("Upload current version", type=["pdf"], key="new_upload")
