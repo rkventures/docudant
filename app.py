@@ -1,16 +1,15 @@
-from fastapi import FastAPI, UploadFile, File, Request
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 import shutil
 import os
-import subprocess
 
 app = FastAPI()
 
 # ---------------------- CORS CONFIG ----------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Replace with ["https://docudant.com"] for production
+    allow_origins=["*"],  # Change to ["https://docudant.com"] for production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -25,20 +24,29 @@ def root():
     """
 
 @app.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
-    filename = file.filename
-    file_location = f"./uploads/{filename}"
+async def upload_file(
+    file: UploadFile = File(...),
+    doc_type: str = Form(...)
+):
     os.makedirs("uploads", exist_ok=True)
 
-    with open(file_location, "wb") as buffer:
+    # Save uploaded file
+    file_path = f"./uploads/{file.filename}"
+    with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # Optional: redirect to the Streamlit UI
+    # Save selected document type
+    with open("./uploads/last_doc_type.txt", "w") as f:
+        f.write(doc_type)
+
+    # Save the filename for Streamlit to pick up
+    with open("./uploads/last_uploaded.txt", "w") as f:
+        f.write(file.filename)
+
+    # Redirect to Streamlit
     return RedirectResponse(url="/streamlit", status_code=302)
 
-# ---------------------- STREAMLIT LAUNCH ----------------------
+# Optional: Launch Streamlit separately if needed (or just let it run manually)
 @app.get("/streamlit")
 def launch_streamlit():
-    # Launch Streamlit as a subprocess
-    subprocess.Popen(["streamlit", "run", "streamlit_app.py"])
-    return HTMLResponse(content="Launching Streamlit... Please wait and refresh in a moment.", status_code=200)
+    return HTMLResponse(content="✅ Document uploaded. Please switch to the Streamlit interface.", status_code=200)
