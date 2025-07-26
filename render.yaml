@@ -2,6 +2,7 @@ services:
   - type: web
     name: docudant
     env: python
+    plan: free  # You can change this to 'starter' or 'standard' if upgrading
     buildCommand: pip install -r requirements.txt
     startCommand: ./start.sh
     envVars:
