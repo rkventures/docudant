@@ -2,9 +2,9 @@ services:
   - type: web
     name: docudant
     env: python
-    plan: free  # You can change this to 'starter' or 'standard' if upgrading
-    buildCommand: pip install -r requirements.txt
+    plan: free  # Change to 'starter' or 'standard' for more power/resources
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: ./start.sh
     envVars:
       - key: OPENAI_API_KEY
-        sync: false
+        sync: false  # Set this in Render's dashboard for security
