@@ -49,10 +49,16 @@ async def upload_file(
     with open("./uploads/last_uploaded.txt", "w") as f:
         f.write(file.filename)
 
-    # Redirect to Streamlit interface
-    return RedirectResponse(url="/streamlit", status_code=302)
+    # Redirect to the separate Streamlit UI app (to be created)
+    return RedirectResponse(
+        url="https://docudant-ui.onrender.com",  # Update this if your UI uses a custom domain or name
+        status_code=302
+    )
 
 # ---------------------- STREAMLIT STATUS ----------------------
 @app.get("/streamlit")
 def launch_streamlit():
-    return HTMLResponse(content="✅ Document uploaded. Please switch to the Streamlit interface.", status_code=200)
+    return HTMLResponse(
+        content="✅ Document uploaded. Please switch to the Streamlit interface.",
+        status_code=200
+    )
