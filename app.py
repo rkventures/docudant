@@ -9,13 +9,13 @@ app = FastAPI()
 # ---------------------- CORS CONFIG ----------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change to ["https://docudant.com"] for production
+    allow_origins=["*"],  # Change to ["https://docudant.com"] before production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ---------------------- ROUTES ----------------------
+# ---------------------- HOME ROUTE ----------------------
 @app.get("/", response_class=HTMLResponse)
 def root():
     return """
@@ -23,12 +23,18 @@ def root():
     <p>Use /upload to submit a document for analysis.</p>
     """
 
+# ---------------------- UPLOAD ROUTE ----------------------
 @app.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
     doc_type: str = Form(...)
 ):
     os.makedirs("uploads", exist_ok=True)
+
+    # Basic file extension validation
+    allowed_extensions = [".pdf", ".doc", ".docx"]
+    if not any(file.filename.lower().endswith(ext) for ext in allowed_extensions):
+        return HTMLResponse(content="❌ Unsupported file type. Please upload PDF, DOC, or DOCX.", status_code=400)
 
     # Save uploaded file
     file_path = f"./uploads/{file.filename}"
@@ -43,10 +49,10 @@ async def upload_file(
     with open("./uploads/last_uploaded.txt", "w") as f:
         f.write(file.filename)
 
-    # Redirect to Streamlit
+    # Redirect to Streamlit interface
     return RedirectResponse(url="/streamlit", status_code=302)
 
-# Optional: Launch Streamlit separately if needed (or just let it run manually)
+# ---------------------- STREAMLIT STATUS ----------------------
 @app.get("/streamlit")
 def launch_streamlit():
     return HTMLResponse(content="✅ Document uploaded. Please switch to the Streamlit interface.", status_code=200)
