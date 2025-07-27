@@ -1,4 +1,4 @@
-# ✅ Docudant: streamlit_app.py (Final w/ Plausible Goals Integration)
+# ✅ Docudant: streamlit_app.py (Final w/ Plausible Goals Integration + Visual Polish)
 # ---------------------------------------------------
 # ✅ Feature Checklist (7/27/2025)
 # [x] GPT Model selector (gpt-4 / gpt-3.5-turbo)
@@ -7,13 +7,13 @@
 # [x] Red flag highlighting
 # [x] GPT section-based analysis
 # [x] Smart Next Steps
-# [x] Custom question prompt (✅ logs Plausible 'custom_question')
-# [x] PDF summary download (✅ logs Plausible 'download_summary')
+# [x] Custom question prompt (logs Plausible 'custom_question')
+# [x] PDF summary download (logs Plausible 'download_summary')
 # [x] Saved history viewer
-# [x] Document comparison engine (✅ logs Plausible 'doc_comparison')
-# [x] Removed debug/prompts from output ✅
-# [x] Unicode error fix ✅
-# [x] ✅ Plausible Analytics Goals FIXED
+# [x] Document comparison engine (logs Plausible 'doc_comparison')
+# [x] Removed debug/prompts from output
+# [x] Unicode error fix
+# [x] Plausible Analytics Goals FIXED + UI Visual Polish
 
 import os
 import re
@@ -43,9 +43,11 @@ components.html("""
 <script async defer data-domain="docudant.com" src="https://plausible.io/js/script.js"></script>
 """, height=0)
 
-st.title("\U0001F4C4 Docudant – Contract & Offer Review AI")
-st.markdown("_Analyze contracts, offer letters, NDAs, leases & more – with instant AI insights._")
-st.markdown("Upload a supported document for AI review. Outputs are saved locally.")
+st.markdown("""
+<h1 style='font-size: 2.5em; color: #003366;'>📄 Docudant – Contract & Offer Review AI</h1>
+<p style='font-size: 1.1em;'>Analyze contracts, offer letters, NDAs, leases & more – with instant AI insights.</p>
+<p><b>Upload a supported document for AI review. Outputs are saved locally.</b></p>
+""", unsafe_allow_html=True)
 
 if "history" not in st.session_state:
     st.session_state.history = []
@@ -116,7 +118,7 @@ def save_as_pdf(text, filename):
     pdf.output(filename, 'F')
 
 st.markdown("---")
-st.subheader("\U0001F4C4 Compare Two Documents")
+st.subheader("📄 Compare Two Documents")
 doc1 = st.file_uploader("Upload first document", type=["pdf"], key="compare1")
 doc2 = st.file_uploader("Upload second document", type=["pdf"], key="compare2")
 
@@ -141,10 +143,10 @@ if uploaded_file:
     if not text or text.strip().startswith("[OCR Error:"):
         st.error("\u274C No readable text could be extracted from this PDF.")
     else:
-        st.markdown("### \U0001F50D Extracted Text Preview")
+        st.markdown("### 🔍 Extracted Text Preview")
         st.text_area("Preview", text[:1000])
 
-        st.markdown("### \U0001F4C4 Document Preview (Red = flagged)")
+        st.markdown("### 📄 Document Preview (Red = flagged)")
         highlighted = highlight_red_flags(text)
         st.markdown(f"<div style='white-space: pre-wrap'>{highlighted}</div>", unsafe_allow_html=True)
 
@@ -182,7 +184,7 @@ if uploaded_file:
 
         with open(filename, "rb") as file:
             b64 = base64.b64encode(file.read()).decode()
-            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">\U0001F4E5 Download PDF Summary</a>'
+            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">📥 Download PDF Summary</a>'
             st.markdown(href, unsafe_allow_html=True)
             components.html("<script>plausible('download_summary')</script>", height=0)
 
@@ -194,9 +196,9 @@ if uploaded_file:
 
 st.markdown("---")
 if st.session_state.history:
-    with st.expander("\U0001F4DA View Saved Summaries"):
+    with st.expander("📚 View Saved Summaries"):
         for i, entry in enumerate(reversed(st.session_state.history[-3:])):
-            st.markdown(f"### \U0001F4C4 Saved Summary {len(st.session_state.history) - i}")
+            st.markdown(f"### 📄 Saved Summary {len(st.session_state.history) - i}")
             st.markdown(f"**Type:** {entry['type']}")
             for title, content in entry["results"].items():
                 with st.expander(title):
