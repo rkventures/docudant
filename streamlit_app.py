@@ -1,4 +1,4 @@
-# ✅ Docudant: streamlit_app.py (Latest Version)
+# ✅ Docudant: streamlit_app.py (Updated with Plausible Analytics)
 # ---------------------------------------------------
 # ✅ Feature Checklist (7/27/2025)
 # [x] GPT Model selector (gpt-4 / gpt-3.5-turbo)
@@ -13,6 +13,7 @@
 # [x] Document comparison engine ✅
 # [x] Removed debug/prompts from output ✅
 # [x] Unicode error fix for emoji surrogates ✅
+# [x] ✅ Plausible Analytics Added
 
 import os
 import re
@@ -47,6 +48,15 @@ RED_FLAGS = [
 
 # ---------------------- Streamlit App ----------------------
 st.set_page_config(page_title="Docudant – Contract & Offer Review AI", layout="wide")
+
+# ✅ Plausible Analytics Snippet
+st.markdown(
+    """
+    <script defer data-domain="docudant.com" src="https://plausible.io/js/script.js"></script>
+    """,
+    unsafe_allow_html=True
+)
+
 st.title("📄 Docudant – Contract & Offer Review AI")
 st.markdown("_Analyze contracts, offer letters, NDAs, leases & more – with instant AI insights._")
 st.markdown("Upload a supported document for AI review. Outputs are saved locally.")
