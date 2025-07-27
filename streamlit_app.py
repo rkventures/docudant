@@ -1,4 +1,4 @@
-# ✅ Docudant: streamlit_app.py (Updated with Plausible Analytics)
+# ✅ Docudant: streamlit_app.py (Updated with working Plausible Analytics)
 # ---------------------------------------------------
 # ✅ Feature Checklist (7/27/2025)
 # [x] GPT Model selector (gpt-4 / gpt-3.5-turbo)
@@ -13,14 +13,14 @@
 # [x] Document comparison engine ✅
 # [x] Removed debug/prompts from output ✅
 # [x] Unicode error fix for emoji surrogates ✅
-# [x] ✅ Plausible Analytics Added
+# [x] ✅ Plausible Analytics FIXED
 
 import os
 import re
 import fitz
 import pytesseract
-pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 import streamlit as st
+import streamlit.components.v1 as components
 from PIL import Image
 from io import BytesIO
 from PyPDF2 import PdfReader
@@ -32,6 +32,7 @@ from fpdf import FPDF
 # ---------------------- Load Env and Init ----------------------
 load_dotenv()
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 
 # ---------------------- Red Flag Patterns ----------------------
 RED_FLAGS = [
@@ -49,13 +50,10 @@ RED_FLAGS = [
 # ---------------------- Streamlit App ----------------------
 st.set_page_config(page_title="Docudant – Contract & Offer Review AI", layout="wide")
 
-# ✅ Plausible Analytics Snippet
-st.markdown(
-    """
-    <script defer data-domain="docudant.com" src="https://plausible.io/js/script.js"></script>
-    """,
-    unsafe_allow_html=True
-)
+# ✅ Working Plausible Analytics Snippet
+components.html("""
+<script async defer data-domain="docudant.com" src="https://plausible.io/js/script.js"></script>
+""", height=0)
 
 st.title("📄 Docudant – Contract & Offer Review AI")
 st.markdown("_Analyze contracts, offer letters, NDAs, leases & more – with instant AI insights._")
