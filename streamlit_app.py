@@ -1,3 +1,19 @@
+# ✅ Docudant: streamlit_app.py (Latest Version)
+# ---------------------------------------------------
+# ✅ Feature Checklist (7/27/2025)
+# [x] GPT Model selector (gpt-4 / gpt-3.5-turbo)
+# [x] Document type selector (Offer, Contract, NDA, etc.)
+# [x] PDF text extraction with OCR fallback
+# [x] Red flag highlighting
+# [x] GPT section-based analysis
+# [x] Smart Next Steps
+# [x] Custom question prompt
+# [x] PDF summary download
+# [x] Saved history viewer
+# [x] Document comparison engine ✅
+# [x] Removed debug/prompts from output ✅
+# [x] Unicode error fix for emoji surrogates ✅
+
 import os
 import re
 import fitz
@@ -31,7 +47,7 @@ RED_FLAGS = [
 
 # ---------------------- Streamlit App ----------------------
 st.set_page_config(page_title="Docudant – Contract & Offer Review AI", layout="wide")
-st.title(" Docudant – Contract & Offer Review AI")
+st.title("📄 Docudant – Contract & Offer Review AI")
 st.markdown("_Analyze contracts, offer letters, NDAs, leases & more – with instant AI insights._")
 st.markdown("Upload a supported document for AI review. Outputs are saved locally.")
 
@@ -39,14 +55,14 @@ if "history" not in st.session_state:
     st.session_state.history = []
 
 # ---------------------- Upload UI ----------------------
-model_choice = st.radio("Select model", ["gpt-4", "gpt-3.5-turbo"], horizontal=True, key="model_choice_main")
+model_choice = st.radio("Select model", ["gpt-4", "gpt-3.5-turbo"], horizontal=True)
 document_type = st.selectbox("Select document type:", [
     "Contract", "Offer Letter", "Employment Agreement", "NDA",
     "Equity Grant", "Lease Agreement", "MSA", "Freelance / Custom Agreement",
     "Insurance Document", "Healthcare Agreement"
-], index=0, key="doc_type_select")
+], index=0)
 
-st.file_uploader("Upload your PDF document", type=["pdf"], label_visibility="collapsed", key="main_upload")
+uploaded_file = st.file_uploader("Upload your PDF document", type=["pdf"])
 
 # ---------------------- Text Extraction ----------------------
 def extract_text_from_pdf(file):
@@ -74,13 +90,13 @@ def ocr_pdf_with_pymupdf(file):
         return f"[OCR Error: {e}]"
     return text
 
-# ---------------------- Highlight Red Flags ----------------------
+# ---------------------- Red Flag Highlighting ----------------------
 def highlight_red_flags(text):
     highlighted = text
     for pattern in RED_FLAGS:
         highlighted = re.sub(
             pattern,
-            lambda m: f"\ud83d\udd34 **{m.group(0)}**",
+            lambda m: f"<span style='color:red; font-weight:bold;'>{m.group(0)}</span>",
             highlighted,
             flags=re.IGNORECASE
         )
@@ -96,9 +112,9 @@ def ask_gpt(prompt, model="gpt-4", temperature=0.4):
         )
         return response.choices[0].message.content.strip()
     except AuthenticationError as e:
-        return f"\u26a0\ufe0f Error: {e}"
+        return f"⚠️ Error: {e}"
 
-# ---------------------- Save as PDF ----------------------
+# ---------------------- PDF Saving ----------------------
 def save_as_pdf(text, filename):
     pdf = FPDF()
     pdf.add_page()
@@ -109,11 +125,28 @@ def save_as_pdf(text, filename):
         pdf.multi_cell(0, 10, safe_line)
     pdf.output(filename, 'F')
 
-# ---------------------- Main Analyzer ----------------------
-if st.session_state.main_upload:
-    uploaded_file = st.session_state.main_upload
-    st.success("\u2705 File uploaded successfully.")
+# ---------------------- Comparison ----------------------
+st.markdown("---")
+st.subheader("📄 Compare Two Documents")
+doc1 = st.file_uploader("Upload first document", type=["pdf"], key="compare1")
+doc2 = st.file_uploader("Upload second document", type=["pdf"], key="compare2")
 
+if doc1 and doc2:
+    text1 = extract_text_from_pdf(doc1)
+    text2 = extract_text_from_pdf(doc2)
+
+    if not text1.strip():
+        text1 = ocr_pdf_with_pymupdf(BytesIO(doc1.read()))
+    if not text2.strip():
+        text2 = ocr_pdf_with_pymupdf(BytesIO(doc2.read()))
+
+    compare_prompt = f"Compare the following two {document_type} documents and summarize the differences.\n\nDocument A:\n{text1}\n\nDocument B:\n{text2}"
+    comparison_result = ask_gpt(compare_prompt, model=model_choice)
+    st.text_area("Comparison Summary", comparison_result, height=300)
+
+# ---------------------- Main Analysis ----------------------
+if uploaded_file:
+    st.success("✅ File uploaded successfully.")
     file_bytes = uploaded_file.read()
     text = extract_text_from_pdf(BytesIO(file_bytes))
 
@@ -122,28 +155,27 @@ if st.session_state.main_upload:
         text = ocr_pdf_with_pymupdf(BytesIO(file_bytes))
 
     if not text or text.strip().startswith("[OCR Error:"):
-        st.error("\u274c No readable text could be extracted from this PDF. Try uploading a clearer or searchable version.")
+        st.error("❌ No readable text could be extracted from this PDF.")
     else:
-        st.markdown("### \ud83d\udd0d Extracted Text Preview")
+        st.markdown("### 🔍 Extracted Text Preview")
         st.text_area("Preview", text[:1000])
 
-        st.markdown("### \ud83d\udcc4 Document Preview (\ud83d\udd34 = flagged)")
+        st.markdown("### 📄 Document Preview (Red = flagged)")
         highlighted = highlight_red_flags(text)
         st.markdown(f"<div style='white-space: pre-wrap'>{highlighted}</div>", unsafe_allow_html=True)
 
         sections = {
-            "Parties & Roles": f"In this {document_type}, who are the involved parties and what are their roles? Provide in plain English.",
-            "Key Clauses": f"Extract the key clauses from this {document_type}. Summarize each clause clearly.",
-            "Plain English Explanations": f"Explain each clause from this {document_type} in simple, plain English.",
-            "Risks Identified": f"Identify any vague, risky, or missing terms in this {document_type}. Explain why they're risky or vague.",
-            "Negotiation Suggestions": f"What are potential negotiation points or improvement suggestions for the terms in this {document_type}?",
-            "Clause Benchmarking": f"Compare the key clauses in this {document_type} to standard industry benchmarks. Highlight deviations.",
-            "Clause Suggestions": f"Suggest missing clauses or commonly expected provisions for this type of {document_type} that are not included.",
-            "Smart Next Steps": f"Based on this {document_type}, suggest smart next steps or actions a professional should consider."
+            "Parties & Roles": f"In this {document_type}, who are the involved parties and what are their roles?",
+            "Key Clauses": f"Extract the key clauses from this {document_type}.",
+            "Plain English Explanations": f"Explain each clause in plain English.",
+            "Risks Identified": f"What are potential risks or vague/missing terms in this {document_type}?",
+            "Negotiation Suggestions": f"What should a professional negotiate or ask for in this {document_type}?",
+            "Clause Benchmarking": f"Compare clauses to industry benchmarks.",
+            "Clause Suggestions": f"Suggest any missing clauses for a typical {document_type}.",
+            "Smart Next Steps": f"Based on this {document_type}, suggest smart next steps."
         }
 
         output_sections = {}
-
         for section, prompt in sections.items():
             st.subheader(section)
             response = ask_gpt(prompt + "\n\n" + text, model=model_choice)
@@ -151,12 +183,12 @@ if st.session_state.main_upload:
             output_sections[section] = response
 
         st.subheader("Custom Question")
-        user_q = st.text_input("Ask a question about the document", key="custom_question")
+        user_q = st.text_input("Ask a question about the document")
         if user_q:
             answer = ask_gpt(f"Document type: {document_type}\n\nDocument:\n{text}\n\nQuestion: {user_q}", model=model_choice)
             st.text_area("Answer", answer, height=200)
 
-        compiled = f"""DOCUMENT TYPE: {document_type}\nMODEL USED: {model_choice}\n\n"""
+        compiled = f"DOCUMENT TYPE: {document_type}\nMODEL USED: {model_choice}\n\n"
         for title, content in output_sections.items():
             compiled += f"--- {title.upper()} ---\n{content}\n\n"
 
@@ -165,7 +197,7 @@ if st.session_state.main_upload:
 
         with open(filename, "rb") as file:
             b64 = base64.b64encode(file.read()).decode()
-            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">\ud83d\uddd5\ufe0f Download PDF Summary</a>'
+            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">📥 Download PDF Summary</a>'
             st.markdown(href, unsafe_allow_html=True)
 
         st.session_state.history.append({
@@ -177,9 +209,9 @@ if st.session_state.main_upload:
 # ---------------------- History ----------------------
 st.markdown("---")
 if st.session_state.history:
-    with st.expander("\ud83d\udcda View Saved Summaries"):
+    with st.expander("📚 View Saved Summaries"):
         for i, entry in enumerate(reversed(st.session_state.history[-3:])):
-            st.markdown(f"### \ud83d\udcc4 Saved Summary {len(st.session_state.history) - i}")
+            st.markdown(f"### 📄 Saved Summary {len(st.session_state.history) - i}")
             st.markdown(f"**Type:** {entry['type']}")
             for title, content in entry["results"].items():
                 with st.expander(title):
