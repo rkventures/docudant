@@ -8,11 +8,13 @@ from PIL import Image
 from io import BytesIO
 from PyPDF2 import PdfReader
 from openai import OpenAI, AuthenticationError
+from dotenv import load_dotenv
 import base64
 from fpdf import FPDF
 
 # ---------------------- Load Env and Init ----------------------
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+load_dotenv()
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 # ---------------------- Red Flag Patterns ----------------------
 RED_FLAGS = [
@@ -29,40 +31,20 @@ RED_FLAGS = [
 
 # ---------------------- Streamlit App ----------------------
 st.set_page_config(page_title="Docudant – Contract & Offer Review AI", layout="wide")
-st.title("📄 Docudant – Contract & Offer Review AI")
+st.title("\ud83d\udcc4 Docudant – Contract & Offer Review AI")
 st.markdown("_Analyze contracts, offer letters, NDAs, leases & more – with instant AI insights._")
 st.markdown("Upload a supported document for AI review. Outputs are saved locally.")
 
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# ---------------------- Auto-load from last upload ----------------------
-upload_dir = "./uploads"
-latest_file_path = os.path.join(upload_dir, "last_uploaded.txt")
-last_doc_type_path = os.path.join(upload_dir, "last_doc_type.txt")
-
-uploaded_file = None
-if os.path.exists(latest_file_path):
-    with open(latest_file_path, "r") as f:
-        latest_filename = f.read().strip()
-    full_path = os.path.join(upload_dir, latest_filename)
-    if os.path.exists(full_path):
-        with open(full_path, "rb") as f:
-            uploaded_file = BytesIO(f.read())
-
-document_type = "Contract"
-if os.path.exists(last_doc_type_path):
-    with open(last_doc_type_path, "r") as f:
-        document_type = f.read().strip()
-
+# ---------------------- Upload UI ----------------------
 model_choice = st.radio("Select model", ["gpt-4", "gpt-3.5-turbo"], horizontal=True, key="model_choice_main")
-st.selectbox("Select document type:", [
+document_type = st.selectbox("Select document type:", [
     "Contract", "Offer Letter", "Employment Agreement", "NDA",
     "Equity Grant", "Lease Agreement", "MSA", "Freelance / Custom Agreement",
     "Insurance Document", "Healthcare Agreement"
 ], index=0, key="doc_type_select")
-
-st.markdown("""\n📁 **Examples of documents this tool can analyze:**\n- Freelance and consulting contracts  \n- Startup equity offers and RSU agreements  \n- Lease and rental agreements  \n- Vendor NDAs and MSAs  \n- Health plan or provider agreements  \n- Insurance policies or benefits summaries\n""")
 
 st.file_uploader("Upload your PDF document", type=["pdf"], label_visibility="collapsed", key="main_upload")
 
@@ -98,7 +80,7 @@ def highlight_red_flags(text):
     for pattern in RED_FLAGS:
         highlighted = re.sub(
             pattern,
-            lambda m: f"🔴 **{m.group(0)}**",
+            lambda m: f"\ud83d\udd34 **{m.group(0)}**",
             highlighted,
             flags=re.IGNORECASE
         )
@@ -106,6 +88,7 @@ def highlight_red_flags(text):
 
 # ---------------------- GPT Prompting ----------------------
 def ask_gpt(prompt, model="gpt-4", temperature=0.4):
+    st.markdown(f"Prompt sent to GPT: {prompt[:500]}...")
     try:
         response = client.chat.completions.create(
             model=model,
@@ -114,7 +97,7 @@ def ask_gpt(prompt, model="gpt-4", temperature=0.4):
         )
         return response.choices[0].message.content.strip()
     except AuthenticationError as e:
-        return f"⚠️ Error: {e}"
+        return f"\u26a0\ufe0f Error: {e}"
 
 # ---------------------- Save as PDF ----------------------
 def save_as_pdf(text, filename):
@@ -128,17 +111,24 @@ def save_as_pdf(text, filename):
     pdf.output(filename, 'F')
 
 # ---------------------- Main Analyzer ----------------------
-if uploaded_file:
+if st.session_state.main_upload:
+    uploaded_file = st.session_state.main_upload
+    st.success("\u2705 File uploaded successfully.")
+
     file_bytes = uploaded_file.read()
     text = extract_text_from_pdf(BytesIO(file_bytes))
+
     if not text.strip():
         st.warning("PDF appears to contain no extractable text. Attempting OCR fallback...")
         text = ocr_pdf_with_pymupdf(BytesIO(file_bytes))
 
     if not text or text.strip().startswith("[OCR Error:"):
-        st.error("❌ No readable text could be extracted from this PDF. Try uploading a clearer or searchable version.")
+        st.error("\u274c No readable text could be extracted from this PDF. Try uploading a clearer or searchable version.")
     else:
-        st.markdown("### 📄 Document Preview (🔴 = flagged)")
+        st.markdown("### \ud83d\udd0d Extracted Text Preview")
+        st.text_area("Preview", text[:1000])
+
+        st.markdown("### \ud83d\udcc4 Document Preview (\ud83d\udd34 = flagged)")
         highlighted = highlight_red_flags(text)
         st.markdown(f"<div style='white-space: pre-wrap'>{highlighted}</div>", unsafe_allow_html=True)
 
@@ -161,14 +151,12 @@ if uploaded_file:
             st.text_area(section, response, height=300)
             output_sections[section] = response
 
-        # Custom Question
         st.subheader("Custom Question")
         user_q = st.text_input("Ask a question about the document", key="custom_question")
         if user_q:
             answer = ask_gpt(f"Document type: {document_type}\n\nDocument:\n{text}\n\nQuestion: {user_q}", model=model_choice)
             st.text_area("Answer", answer, height=200)
 
-        # Save PDF Summary
         compiled = f"""DOCUMENT TYPE: {document_type}\nMODEL USED: {model_choice}\n\n"""
         for title, content in output_sections.items():
             compiled += f"--- {title.upper()} ---\n{content}\n\n"
@@ -178,7 +166,7 @@ if uploaded_file:
 
         with open(filename, "rb") as file:
             b64 = base64.b64encode(file.read()).decode()
-            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">📅 Download PDF Summary</a>'
+            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">\ud83d\uddd5\ufe0f Download PDF Summary</a>'
             st.markdown(href, unsafe_allow_html=True)
 
         st.session_state.history.append({
@@ -187,36 +175,15 @@ if uploaded_file:
             "results": output_sections
         })
 
-# ---------------------- Feedback and History ----------------------
-st.markdown("💬 Found something unclear or helpful? [Click here to leave feedback](https://forms.gle/yourformlink)")
-st.markdown("---\n_Disclaimer: This summary is AI-generated and should not be considered legal advice._")
-
+# ---------------------- History ----------------------
+st.markdown("---")
 if st.session_state.history:
-    with st.expander("📚 View Saved Summaries"):
+    with st.expander("\ud83d\udcda View Saved Summaries"):
         for i, entry in enumerate(reversed(st.session_state.history[-3:])):
-            st.markdown(f"### 📄 Saved Summary {len(st.session_state.history) - i}")
+            st.markdown(f"### \ud83d\udcc4 Saved Summary {len(st.session_state.history) - i}")
             st.markdown(f"**Type:** {entry['type']}")
             for title, content in entry["results"].items():
                 with st.expander(title):
                     st.markdown(content)
 
-# ---------------------- Document Comparison ----------------------
-st.markdown("---")
-st.header("🔚 Compare Document Versions (Optional)")
-model_choice_2 = st.radio("Select model for comparison", ["gpt-4", "gpt-3.5-turbo"], horizontal=True, key="model_choice_compare")
-old_doc = st.file_uploader("Upload previous version", type=["pdf"], key="old_upload")
-new_doc = st.file_uploader("Upload current version", type=["pdf"], key="new_upload")
-
-if old_doc and new_doc:
-    old_text = extract_text_from_pdf(old_doc)
-    if not old_text.strip():
-        old_text = ocr_pdf_with_pymupdf(old_doc)
-
-    new_text = extract_text_from_pdf(new_doc)
-    if not new_text.strip():
-        new_text = ocr_pdf_with_pymupdf(new_doc)
-
-    diff_prompt = f"Compare these two versions of a {document_type} and highlight all meaningful differences in clauses, responsibilities, compensation, and obligations.\n\n--- OLD VERSION ---\n{old_text}\n\n--- NEW VERSION ---\n{new_text}"
-    comparison = ask_gpt(diff_prompt, model=model_choice_2)
-    st.subheader("Comparison Result")
-    st.text_area("Differences", comparison, height=300)
+st.markdown("---\n_Disclaimer: This summary is AI-generated and should not be considered legal advice._")
