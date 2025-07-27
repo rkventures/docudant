@@ -31,7 +31,7 @@ RED_FLAGS = [
 
 # ---------------------- Streamlit App ----------------------
 st.set_page_config(page_title="Docudant – Contract & Offer Review AI", layout="wide")
-st.title(" Docudant – Contract & Offer Review AI")
+st.title("Docudant – Contract & Offer Review AI")
 st.markdown("_Analyze contracts, offer letters, NDAs, leases & more – with instant AI insights._")
 st.markdown("Upload a supported document for AI review. Outputs are saved locally.")
 
@@ -80,7 +80,7 @@ def highlight_red_flags(text):
     for pattern in RED_FLAGS:
         highlighted = re.sub(
             pattern,
-            lambda m: f"\ud83d\udd34 **{m.group(0)}**",
+            lambda m: f"<mark>{m.group(0)}</mark>",
             highlighted,
             flags=re.IGNORECASE
         )
@@ -97,7 +97,7 @@ def ask_gpt(prompt, model="gpt-4", temperature=0.4):
         )
         return response.choices[0].message.content.strip()
     except AuthenticationError as e:
-        return f"\u26a0\ufe0f Error: {e}"
+        return f"⚠️ Error: {e}"
 
 # ---------------------- Save as PDF ----------------------
 def save_as_pdf(text, filename):
@@ -113,7 +113,7 @@ def save_as_pdf(text, filename):
 # ---------------------- Main Analyzer ----------------------
 if st.session_state.main_upload:
     uploaded_file = st.session_state.main_upload
-    st.success("\u2705 File uploaded successfully.")
+    st.success("File uploaded successfully.")
 
     file_bytes = uploaded_file.read()
     text = extract_text_from_pdf(BytesIO(file_bytes))
@@ -123,12 +123,12 @@ if st.session_state.main_upload:
         text = ocr_pdf_with_pymupdf(BytesIO(file_bytes))
 
     if not text or text.strip().startswith("[OCR Error:"):
-        st.error("\u274c No readable text could be extracted from this PDF. Try uploading a clearer or searchable version.")
+        st.error("No readable text could be extracted from this PDF. Try uploading a clearer or searchable version.")
     else:
-        st.markdown("### \ud83d\udd0d Extracted Text Preview")
+        st.markdown("### Extracted Text Preview")
         st.text_area("Preview", text[:1000])
 
-        st.markdown("### \ud83d\udcc4 Document Preview (\ud83d\udd34 = flagged)")
+        st.markdown("### Document Preview (Red highlights = flagged)")
         highlighted = highlight_red_flags(text)
         st.markdown(f"<div style='white-space: pre-wrap'>{highlighted}</div>", unsafe_allow_html=True)
 
@@ -166,7 +166,7 @@ if st.session_state.main_upload:
 
         with open(filename, "rb") as file:
             b64 = base64.b64encode(file.read()).decode()
-            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">\ud83d\uddd5\ufe0f Download PDF Summary</a>'
+            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">Download PDF Summary</a>'
             st.markdown(href, unsafe_allow_html=True)
 
         st.session_state.history.append({
@@ -178,9 +178,9 @@ if st.session_state.main_upload:
 # ---------------------- History ----------------------
 st.markdown("---")
 if st.session_state.history:
-    with st.expander("\ud83d\udcda View Saved Summaries"):
+    with st.expander("View Saved Summaries"):
         for i, entry in enumerate(reversed(st.session_state.history[-3:])):
-            st.markdown(f"### \ud83d\udcc4 Saved Summary {len(st.session_state.history) - i}")
+            st.markdown(f"### Saved Summary {len(st.session_state.history) - i}")
             st.markdown(f"**Type:** {entry['type']}")
             for title, content in entry["results"].items():
                 with st.expander(title):
