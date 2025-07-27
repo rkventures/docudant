@@ -31,7 +31,7 @@ RED_FLAGS = [
 
 # ---------------------- Streamlit App ----------------------
 st.set_page_config(page_title="Docudant – Contract & Offer Review AI", layout="wide")
-st.title("\ud83d\udcc4 Docudant – Contract & Offer Review AI")
+st.title(" Docudant – Contract & Offer Review AI")
 st.markdown("_Analyze contracts, offer letters, NDAs, leases & more – with instant AI insights._")
 st.markdown("Upload a supported document for AI review. Outputs are saved locally.")
 
