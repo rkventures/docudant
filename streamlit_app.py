@@ -8,13 +8,11 @@ from PIL import Image
 from io import BytesIO
 from PyPDF2 import PdfReader
 from openai import OpenAI, AuthenticationError
-from dotenv import load_dotenv
 import base64
 from fpdf import FPDF
 
 # ---------------------- Load Env and Init ----------------------
-load_dotenv()
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # ---------------------- Red Flag Patterns ----------------------
 RED_FLAGS = [
