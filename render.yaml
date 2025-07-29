@@ -2,9 +2,19 @@ services:
   - type: web
     name: docudant
     env: python
-    plan: free  # Change to 'starter' or 'standard' for more power/resources
+    plan: free  # Upgrade if needed
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
-    startCommand: ./start.sh
+    startCommand: streamlit run streamlit_app.py --server.port 10000 --server.enableCORS false
     envVars:
       - key: OPENAI_API_KEY
-        sync: false  # Set this in Render's dashboard for security
+        sync: false
+
+  - type: web
+    name: docudant-embed
+    env: python
+    plan: free  # Separate service; same rules apply
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: streamlit run streamlit_embed.py --server.port 10001 --server.enableCORS false
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
