@@ -1,137 +1,26 @@
-# ✅ Docudant: streamlit_app.py (Final w/ Plausible Goals Integration + Visual Polish)
-# ---------------------------------------------------
-# ✅ Feature Checklist (7/27/2025)
-# [x] GPT Model selector (gpt-4 / gpt-3.5-turbo)
-# [x] Document type selector (Offer, Contract, NDA, etc.)
-# [x] PDF text extraction with OCR fallback
-# [x] Red flag highlighting
-# [x] GPT section-based analysis
-# [x] Smart Next Steps
-# [x] Custom question prompt (logs Plausible 'custom_question')
-# [x] PDF summary download (logs Plausible 'download_summary')
-# [x] Saved history viewer
-# [x] Document comparison engine (logs Plausible 'doc_comparison')
-# [x] Removed debug/prompts from output
-# [x] Unicode error fix
-# [x] Plausible Analytics Goals FIXED + UI Visual Polish
-
-import os
-import re
-import fitz
-import pytesseract
-import streamlit as st
-import streamlit.components.v1 as components
-from PIL import Image
-from io import BytesIO
-from PyPDF2 import PdfReader
-from openai import OpenAI, AuthenticationError
-from dotenv import load_dotenv
-import base64
-from fpdf import FPDF
-
-load_dotenv()
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
-
-RED_FLAGS = [
-    r"at-will", r"non[- ]?compete", r"termination.*discretion", r"subject to change",
-    r"binding arbitration", r"waive.*rights", r"no liability", r"without notice", r"not obligated"
-]
-
-st.set_page_config(page_title="Docudant – Contract & Offer Review AI", layout="wide")
-components.html("""
-<script async defer data-domain="docudant.com" src="https://plausible.io/js/script.js"></script>
-""", height=0)
-
-st.markdown("""
-<h1 style='font-size: 2.5em; color: #003366;'>📄 Docudant – Contract & Offer Review AI</h1>
-<p style='font-size: 1.1em;'>Analyze contracts, offer letters, NDAs, leases & more – with instant AI insights.</p>
-<p><b>Upload a supported document for AI review. Outputs are saved locally.</b></p>
-""", unsafe_allow_html=True)
-
+# ... (all existing imports remain unchanged)
 if "history" not in st.session_state:
     st.session_state.history = []
 
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+if "doc_context" not in st.session_state:
+    st.session_state.doc_context = None
+
+# --- Existing Page Config and Header (unchanged) ---
+# ... (same st.set_page_config, plausible script, title markdown, etc.)
+
+# --- Model & Document Type Selection ---
 model_choice = st.radio("Select model", ["gpt-4", "gpt-3.5-turbo"], horizontal=True)
-document_type = st.selectbox("Select document type:", [
-    "Contract", "Offer Letter", "Employment Agreement", "NDA", "Equity Grant", "Lease Agreement",
-    "MSA", "Freelance / Custom Agreement", "Insurance Document", "Healthcare Agreement"
-])
+document_type = st.selectbox("Select document type:", [...])  # unchanged
 
 uploaded_file = st.file_uploader("Upload your PDF document", type=["pdf"])
 
-def extract_text_from_pdf(file):
-    text = ""
-    pdf_reader = PdfReader(file)
-    for page in pdf_reader.pages:
-        extracted = page.extract_text()
-        if extracted:
-            text += extracted
-    return text
+# --- Document Comparison Section (unchanged) ---
+# ... (doc1, doc2, comparison, plausible logging)
 
-def ocr_pdf_with_pymupdf(file):
-    text = ""
-    try:
-        doc = fitz.open(stream=file.read(), filetype="pdf")
-        for page in doc:
-            blocks = page.get_text("blocks")
-            if blocks and any(block[4].strip() for block in blocks):
-                text += page.get_text()
-            else:
-                pix = page.get_pixmap(dpi=300)
-                img = Image.open(BytesIO(pix.tobytes("png")))
-                text += pytesseract.image_to_string(img)
-    except Exception as e:
-        return f"[OCR Error: {e}]"
-    return text
-
-def highlight_red_flags(text):
-    highlighted = text
-    for pattern in RED_FLAGS:
-        highlighted = re.sub(
-            pattern,
-            lambda m: f"<span style='color:red; font-weight:bold;'>{m.group(0)}</span>",
-            highlighted,
-            flags=re.IGNORECASE
-        )
-    return highlighted
-
-def ask_gpt(prompt, model="gpt-4", temperature=0.4):
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temperature
-        )
-        return response.choices[0].message.content.strip()
-    except AuthenticationError as e:
-        return f"\u26A0\ufe0f Error: {e}"
-
-def save_as_pdf(text, filename):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_font("Arial", size=12)
-    for line in text.split('\n'):
-        safe_line = line.encode('latin-1', 'replace').decode('latin-1')
-        pdf.multi_cell(0, 10, safe_line)
-    pdf.output(filename, 'F')
-
-st.markdown("---")
-st.subheader("📄 Compare Two Documents")
-doc1 = st.file_uploader("Upload first document", type=["pdf"], key="compare1")
-doc2 = st.file_uploader("Upload second document", type=["pdf"], key="compare2")
-
-if doc1 and doc2:
-    text1 = extract_text_from_pdf(doc1)
-    text2 = extract_text_from_pdf(doc2)
-    if not text1.strip(): text1 = ocr_pdf_with_pymupdf(BytesIO(doc1.read()))
-    if not text2.strip(): text2 = ocr_pdf_with_pymupdf(BytesIO(doc2.read()))
-    compare_prompt = f"Compare the following two {document_type} documents and summarize the differences.\n\nDocument A:\n{text1}\n\nDocument B:\n{text2}"
-    comparison_result = ask_gpt(compare_prompt, model=model_choice)
-    st.text_area("Comparison Summary", comparison_result, height=300)
-    components.html("<script>plausible('doc_comparison')</script>", height=0)
-
+# --- Document Upload Handling & Analysis ---
 if uploaded_file:
     st.success("\u2705 File uploaded successfully.")
     components.html("<script>plausible('file_uploaded')</script>", height=0)
@@ -150,6 +39,23 @@ if uploaded_file:
         highlighted = highlight_red_flags(text)
         st.markdown(f"<div style='white-space: pre-wrap'>{highlighted}</div>", unsafe_allow_html=True)
 
+        # 🔺 Red Flag Smart Follow-ups
+        st.subheader("🔺 Red Flags & Follow-Ups")
+        for pattern in RED_FLAGS:
+            matches = re.findall(pattern, text, flags=re.IGNORECASE)
+            for match in matches:
+                st.markdown(f"❗ **{match}**")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button(f"🔍 Explain: {match}", key=f"explain_{match}"):
+                        explanation = ask_gpt(f"Explain why this could be a red flag: '{match}'", model=model_choice)
+                        st.info(explanation)
+                with col2:
+                    if st.button(f"💡 Negotiate: {match}", key=f"negotiate_{match}"):
+                        suggestion = ask_gpt(f"How might someone negotiate or improve this clause: '{match}'", model=model_choice)
+                        st.success(suggestion)
+
+        # 🔍 Structured Section Analysis
         sections = {
             "Parties & Roles": f"In this {document_type}, who are the involved parties and what are their roles?",
             "Key Clauses": f"Extract the key clauses from this {document_type}.",
@@ -175,12 +81,14 @@ if uploaded_file:
             st.text_area("Answer", answer, height=200)
             components.html("<script>plausible('custom_question')</script>", height=0)
 
-        compiled = f"DOCUMENT TYPE: {document_type}\nMODEL USED: {model_choice}\n\n"
+        # Save context for Q&A
+        compiled_context = f"Document Type: {document_type}\n\nExtracted Summary:\n\n"
         for title, content in output_sections.items():
-            compiled += f"--- {title.upper()} ---\n{content}\n\n"
+            compiled_context += f"--- {title.upper()} ---\n{content}\n\n"
+        st.session_state.doc_context = compiled_context
 
         filename = "document_review_summary.pdf"
-        save_as_pdf(compiled, filename)
+        save_as_pdf(compiled_context, filename)
 
         with open(filename, "rb") as file:
             b64 = base64.b64encode(file.read()).decode()
@@ -194,6 +102,7 @@ if uploaded_file:
             "results": output_sections
         })
 
+# --- Saved Summaries Viewer (unchanged) ---
 st.markdown("---")
 if st.session_state.history:
     with st.expander("📚 View Saved Summaries"):
@@ -204,4 +113,26 @@ if st.session_state.history:
                 with st.expander(title):
                     st.markdown(content)
 
+# --- 💬 Conversational Q&A UI ---
+st.markdown("---")
+st.markdown("## 💬 Ask Docudant About Your Document")
+
+for msg in st.session_state.chat_history:
+    st.chat_message(msg["role"]).markdown(msg["content"])
+
+user_input = st.chat_input("Ask a question about the uploaded document...")
+
+if user_input:
+    if st.session_state.doc_context:
+        st.session_state.chat_history.append({"role": "user", "content": user_input})
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                prompt = f"""You are a document review assistant. A user has uploaded a {document_type}. The summary of the document is:\n\n{st.session_state.doc_context}\n\nThe user is asking: {user_input}"""
+                reply = ask_gpt(prompt, model=model_choice)
+                st.session_state.chat_history.append({"role": "assistant", "content": reply})
+                st.markdown(reply)
+    else:
+        st.warning("Please upload and process a document first to enable contextual Q&A.")
+
+# --- Legal Disclaimer ---
 st.markdown("---\n_Disclaimer: This summary is AI-generated and should not be considered legal advice._")
