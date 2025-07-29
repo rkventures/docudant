@@ -23,7 +23,7 @@ RED_FLAGS = [
 
 # --- Set Compact Mode & Query Params ---
 st.set_page_config(page_title="Docudant Embedded", layout="wide")
-params = st.experimental_get_query_params()
+params = st.query_params
 doc_type = params.get("docType", ["Contract"])[0]
 model_choice = params.get("model", ["gpt-4"])[0]
 compact_mode = params.get("compactMode", ["false"])[0].lower() == "true"
