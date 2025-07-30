@@ -125,16 +125,21 @@ def save_as_pdf(text, filename):
     pdf.output(filename, 'F')
 
 def estimate_offer_compensation(text):
-    prompt = f"""Extract and summarize total compensation from this offer letter, including:
-- Base salary
-- Bonus
-- Equity or RSUs
-- Benefits highlights
-- Total comp estimate (if possible)
+    prompt = f"""You're an expert HR and compensation analyst. Extract and summarize all components of total compensation in this offer letter. Include the following if available:
+
+1. Base salary
+2. Target bonus (e.g., AIP, performance bonus, annual incentive)
+3. Equity, RSUs, or stock options
+4. Benefits highlights (health, 401k, PTO, etc.)
+5. Any signing bonus or relocation support
+6. An estimated total compensation figure (base + bonus + equity if quantifiable)
+
+Clearly label each item. If a component is not explicitly mentioned, say "Not mentioned" instead of guessing. Assume U.S. dollars unless another currency is specified.
 
 Offer Letter Text:
-{text}"""
-    return ask_gpt(prompt, model=model_choice)
+{text}
+"""
+    return ask_gpt(prompt)
 
 # --- Main Flow ---
 if uploaded_file:
