@@ -1,5 +1,3 @@
-# ✅ Docudant – Final Streamlit App (with model fallback, all core enhancements, and Offer Letter Compensation Estimation)
-
 import os
 import re
 import fitz
@@ -45,16 +43,15 @@ if "doc_context" not in st.session_state:
 
 # --- Model and Document Type ---
 model_choice = st.radio("Select model", ["gpt-4", "gpt-3.5-turbo"], horizontal=True)
-ALLOWED_MODELS = ["gpt-4", "gpt-3.5-turbo"]
-if model_choice not in ALLOWED_MODELS:
-    st.error("⚠️ Invalid model selected. Please choose a supported model.")
-    st.stop()
-
 document_type = st.selectbox("Select document type:", [
     "Contract", "Offer Letter", "Employment Agreement", "NDA", "Equity Grant", "Lease Agreement",
     "MSA", "Freelance / Custom Agreement", "Insurance Document", "Healthcare Agreement"
 ])
 uploaded_file = st.file_uploader("Upload your PDF document", type=["pdf"])
+ALLOWED_MODELS = ["gpt-4", "gpt-3.5-turbo"]
+if model_choice not in ALLOWED_MODELS:
+    st.error("⚠️ Invalid model selected. Please choose a supported model.")
+    st.stop()
 
 # --- Utilities ---
 def extract_text_from_pdf(file):
@@ -123,7 +120,6 @@ def save_as_pdf(text, filename):
         safe_line = line.encode('latin-1', 'replace').decode('latin-1')
         pdf.multi_cell(0, 10, safe_line)
     pdf.output(filename, 'F')
-
 def estimate_offer_compensation(text):
     prompt = f"""You're an expert HR and compensation analyst. Extract and summarize all components of total compensation in this offer letter. Include the following if available:
 
@@ -141,40 +137,35 @@ Offer Letter Text:
 """
     return ask_gpt(prompt)
 
-# ✅ Docudant – Streamlit App (with Clause Benchmarking v2: per-clause analysis)
+def benchmark_offer_compensation(text):
+    prompt = f"""You are a compensation benchmarking expert. Based on the offer letter below, analyze whether the compensation offered is competitive for the candidate's likely role, title, and location.
 
-# [Identical imports & initialization as before — omitted for brevity]
+1. Identify the likely role/title and job level from the offer letter text.
+2. If location is available, consider it in benchmarking.
+3. Benchmark the compensation package (base salary, bonus, equity if mentioned) against current industry standards.
+4. Summarize whether this is below, at, or above market.
+5. Offer any negotiation suggestions if the offer is below typical ranges.
+
+Only use benchmarks relevant to the text. Be honest but conservative in evaluation.
+
+Offer Letter Text:
+{text}
+"""
+    return ask_gpt(prompt)
 
 def extract_clauses(text):
-    """
-    Extract clauses based on numbered or lettered headings.
-    """
     clause_pattern = r"(?:(?:^|\n)(?:\d+\.|\d+\)|[A-Z]\.)\s+.+?)(?=\n\d+\.|\n\d+\)|\n[A-Z]\.|\Z)"
     clauses = re.findall(clause_pattern, text, re.DOTALL)
     return [clause.strip() for clause in clauses if len(clause.strip()) > 30]
 
 def benchmark_clause_against_industry(clause, doc_type):
     prompt = f"""You are a contract review expert. Benchmark the following clause from a {doc_type} against industry standards.
-    
+
 Clause:
-\"\"\"
-{clause}
-\"\"\"
+\"\"\"{clause}\"\"\"
 
 Provide feedback on whether the clause is standard, overly aggressive, or missing protections. Suggest improvements."""
     return ask_gpt(prompt)
-
-
-# New: Clause Benchmarking v2
-st.subheader("📊 Clause Benchmarking (Per-Clause Review)")
-clauses = extract_clauses(text)
-for i, clause in enumerate(clauses[:10]):  # Limit to first 10 for performance
-    with st.expander(f"Clause {i+1}"):
-        st.markdown(f"**Clause Text:**\n\n{clause}")
-        feedback = benchmark_clause_against_industry(clause, document_type)
-        st.markdown(f"**Benchmark Feedback:**\n\n{feedback}")
-
-
 
 # --- Main Flow ---
 if uploaded_file:
@@ -198,6 +189,10 @@ if uploaded_file:
             st.subheader("💰 Compensation Breakdown")
             comp = estimate_offer_compensation(text)
             st.text_area("Estimated Compensation", comp, height=250)
+
+            st.subheader("📊 Compensation Benchmark")
+            comp_bench = benchmark_offer_compensation(text)
+            st.text_area("Benchmark Insights", comp_bench, height=250)
 
         st.subheader("🔺 Red Flags & Follow-Ups")
         for pattern in RED_FLAGS:
@@ -228,6 +223,14 @@ if uploaded_file:
             result = ask_gpt(prompt + "\n\n" + text, model=model_choice)
             st.text_area(section, result, height=300)
             output_sections[section] = result
+
+        st.subheader("📊 Clause Benchmarking (Per-Clause Review)")
+        clauses = extract_clauses(text)
+        for i, clause in enumerate(clauses[:10]):
+            with st.expander(f"Clause {i+1}"):
+                st.markdown(f"**Clause Text:**\n\n{clause}")
+                feedback = benchmark_clause_against_industry(clause, document_type)
+                st.markdown(f"**Benchmark Feedback:**\n\n{feedback}")
 
         st.subheader("Custom Question")
         user_q = st.text_input("Ask a question about the document")
@@ -268,10 +271,8 @@ if st.session_state.history:
 # --- Conversational Q&A ---
 st.markdown("---")
 st.markdown("## 💬 Ask Docudant About Your Document")
-
 for msg in st.session_state.chat_history:
     st.chat_message(msg["role"]).markdown(msg["content"])
-
 user_input = st.chat_input("Ask a question about the uploaded document...")
 if user_input:
     if st.session_state.doc_context:
