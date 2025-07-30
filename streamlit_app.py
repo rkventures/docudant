@@ -1,4 +1,4 @@
-# ✅ Docudant – Final Streamlit App (with model fallback and all core enhancements)
+# ✅ Docudant – Final Streamlit App (with model fallback, all core enhancements, and Offer Letter Compensation Estimation)
 
 import os
 import re
@@ -124,21 +124,17 @@ def save_as_pdf(text, filename):
         pdf.multi_cell(0, 10, safe_line)
     pdf.output(filename, 'F')
 
-# --- Document Comparison ---
-st.markdown("---")
-st.subheader("📄 Compare Two Documents")
-doc1 = st.file_uploader("Upload first document", type=["pdf"], key="compare1")
-doc2 = st.file_uploader("Upload second document", type=["pdf"], key="compare2")
+def estimate_offer_compensation(text):
+    prompt = f"""Extract and summarize total compensation from this offer letter, including:
+- Base salary
+- Bonus
+- Equity or RSUs
+- Benefits highlights
+- Total comp estimate (if possible)
 
-if doc1 and doc2:
-    text1 = extract_text_from_pdf(doc1)
-    text2 = extract_text_from_pdf(doc2)
-    if not text1.strip(): text1 = ocr_pdf_with_pymupdf(BytesIO(doc1.read()))
-    if not text2.strip(): text2 = ocr_pdf_with_pymupdf(BytesIO(doc2.read()))
-    compare_prompt = f"Compare the following two {document_type} documents and summarize the differences.\n\nDocument A:\n{text1}\n\nDocument B:\n{text2}"
-    comparison_result = ask_gpt(compare_prompt, model=model_choice)
-    st.text_area("Comparison Summary", comparison_result, height=300)
-    components.html("<script>plausible('doc_comparison')</script>", height=0)
+Offer Letter Text:
+{text}"""
+    return ask_gpt(prompt, model=model_choice)
 
 # --- Main Flow ---
 if uploaded_file:
@@ -157,6 +153,11 @@ if uploaded_file:
 
         st.markdown("### 📄 Document Preview (Red = flagged)")
         st.markdown(f"<div style='white-space: pre-wrap'>{highlight_red_flags(text)}</div>", unsafe_allow_html=True)
+
+        if document_type == "Offer Letter":
+            st.subheader("💰 Compensation Breakdown")
+            comp = estimate_offer_compensation(text)
+            st.text_area("Estimated Compensation", comp, height=250)
 
         st.subheader("🔺 Red Flags & Follow-Ups")
         for pattern in RED_FLAGS:
