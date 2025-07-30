@@ -141,6 +141,57 @@ Offer Letter Text:
 """
     return ask_gpt(prompt)
 
+# ✅ Docudant – Streamlit App (with Clause Benchmarking v2: per-clause analysis)
+
+# [Identical imports & initialization as before — omitted for brevity]
+
+def extract_clauses(text):
+    """
+    Extract clauses based on numbered or lettered headings.
+    """
+    clause_pattern = r"(?:(?:^|\n)(?:\d+\.|\d+\)|[A-Z]\.)\s+.+?)(?=\n\d+\.|\n\d+\)|\n[A-Z]\.|\Z)"
+    clauses = re.findall(clause_pattern, text, re.DOTALL)
+    return [clause.strip() for clause in clauses if len(clause.strip()) > 30]
+
+def benchmark_clause_against_industry(clause, doc_type):
+    prompt = f"""You are a contract review expert. Benchmark the following clause from a {doc_type} against industry standards.
+    
+Clause:
+\"\"\"
+{clause}
+\"\"\"
+
+Provide feedback on whether the clause is standard, overly aggressive, or missing protections. Suggest improvements."""
+    return ask_gpt(prompt)
+
+# In the main analysis section – replace old Clause Benchmarking section:
+        sections = {
+            "Parties & Roles": f"In this {document_type}, who are the involved parties and what are their roles?",
+            "Key Clauses": f"Extract the key clauses from this {document_type}.",
+            "Plain English Explanations": f"Explain each clause in plain English.",
+            "Risks Identified": f"What are potential risks or vague/missing terms in this {document_type}?",
+            "Negotiation Suggestions": f"What should a professional negotiate or ask for in this {document_type}?",
+            "Clause Suggestions": f"Suggest any missing clauses for a typical {document_type}.",
+            "Smart Next Steps": f"Based on this {document_type}, suggest smart next steps."
+        }
+
+        output_sections = {}
+        for section, prompt in sections.items():
+            st.subheader(section)
+            result = ask_gpt(prompt + "\n\n" + text, model=model_choice)
+            st.text_area(section, result, height=300)
+            output_sections[section] = result
+
+        # New: Clause Benchmarking v2
+        st.subheader("📊 Clause Benchmarking (Per-Clause Review)")
+        clauses = extract_clauses(text)
+        for i, clause in enumerate(clauses[:10]):  # Limit to first 10 for performance
+            with st.expander(f"Clause {i+1}"):
+                st.markdown(f"**Clause Text:**\n\n{clause}")
+                feedback = benchmark_clause_against_industry(clause, document_type)
+                st.markdown(f"**Benchmark Feedback:**\n\n{feedback}")
+
+
 # --- Main Flow ---
 if uploaded_file:
     st.success("✅ File uploaded successfully.")
@@ -183,7 +234,6 @@ if uploaded_file:
             "Plain English Explanations": f"Explain each clause in plain English.",
             "Risks Identified": f"What are potential risks or vague/missing terms in this {document_type}?",
             "Negotiation Suggestions": f"What should a professional negotiate or ask for in this {document_type}?",
-            "Clause Benchmarking": f"Compare clauses to industry benchmarks.",
             "Clause Suggestions": f"Suggest any missing clauses for a typical {document_type}.",
             "Smart Next Steps": f"Based on this {document_type}, suggest smart next steps."
         }
