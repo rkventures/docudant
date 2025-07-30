@@ -25,8 +25,12 @@ RED_FLAGS = [
 st.set_page_config(page_title="Docudant Embedded", layout="wide")
 params = st.query_params
 doc_type = params.get("docType", ["Contract"])[0]
-model_choice = params.get("model", ["gpt-4"])[0]
+raw_model = params.get("model", ["gpt-4o"])[0]
 compact_mode = params.get("compactMode", ["false"])[0].lower() == "true"
+
+# --- Validate model name ---
+VALID_MODELS = {"gpt-4o", "gpt-4", "gpt-3.5-turbo"}
+model_choice = raw_model if raw_model in VALID_MODELS else "gpt-4o"
 
 components.html("""<script async defer data-domain="docudant.com" src="https://plausible.io/js/script.js"></script>""", height=0)
 
@@ -36,7 +40,7 @@ if not compact_mode:
 
 uploaded_file = st.file_uploader("Upload your PDF document", type=["pdf"])
 
-# --- Util Functions (reuse from main app) ---
+# --- Util Functions ---
 def extract_text_from_pdf(file):
     text = ""
     pdf_reader = PdfReader(file)
@@ -62,7 +66,7 @@ def ocr_pdf_with_pymupdf(file):
         return f"[OCR Error: {e}]"
     return text
 
-def ask_gpt(prompt, model="gpt-4", temperature=0.4):
+def ask_gpt(prompt, model="gpt-4o", temperature=0.4):
     response = client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],
