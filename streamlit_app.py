@@ -1,4 +1,4 @@
-# ✅ Docudant – Final Streamlit App (with model protection and Plausible event fix)
+# ✅ Docudant – Final Streamlit App (with model fallback and all core enhancements)
 
 import os
 import re
@@ -26,9 +26,7 @@ RED_FLAGS = [
 
 # --- Page Config & Analytics ---
 st.set_page_config(page_title="Docudant – Contract & Offer Review AI", layout="wide")
-components.html("""
-<script async defer data-domain="docudant.com" src="https://plausible.io/js/script.js"></script>
-""", height=0)
+components.html("""<script async defer data-domain="docudant.com" src="https://plausible.io/js/script.js"></script>""", height=0)
 
 # --- Header ---
 st.markdown("""
@@ -97,15 +95,23 @@ def highlight_red_flags(text):
 
 def ask_gpt(prompt, model="gpt-4", temperature=0.4):
     try:
-        if model not in ALLOWED_MODELS:
-            raise ValueError(f"Model '{model}' is not allowed.")
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=temperature
         )
         return response.choices[0].message.content.strip()
-    except (AuthenticationError, OpenAIError, ValueError) as e:
+    except (OpenAIError, AuthenticationError, ValueError) as e:
+        if model == "gpt-4":
+            try:
+                fallback_response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=temperature
+                )
+                return "(Fallback to GPT-3.5)\n" + fallback_response.choices[0].message.content.strip()
+            except Exception as fallback_error:
+                return f"⚠️ GPT Error (Fallback failed): {fallback_error}"
         return f"⚠️ GPT Error: {e}"
 
 def save_as_pdf(text, filename):
@@ -132,26 +138,12 @@ if doc1 and doc2:
     compare_prompt = f"Compare the following two {document_type} documents and summarize the differences.\n\nDocument A:\n{text1}\n\nDocument B:\n{text2}"
     comparison_result = ask_gpt(compare_prompt, model=model_choice)
     st.text_area("Comparison Summary", comparison_result, height=300)
-    components.html("""
-<script>
-  window.plausible = window.plausible || function () {
-    (window.plausible.q = window.plausible.q || []).push(arguments)
-  };
-  plausible('doc_comparison');
-</script>
-""", height=0)
+    components.html("<script>plausible('doc_comparison')</script>", height=0)
 
-# --- Main File Upload Flow ---
+# --- Main Flow ---
 if uploaded_file:
     st.success("✅ File uploaded successfully.")
-    components.html("""
-<script>
-  window.plausible = window.plausible || function () {
-    (window.plausible.q = window.plausible.q || []).push(arguments)
-  };
-  plausible('file_uploaded');
-</script>
-""", height=0)
+    components.html("<script>plausible('file_uploaded')</script>", height=0)
     file_bytes = uploaded_file.read()
     text = extract_text_from_pdf(BytesIO(file_bytes))
     if not text.strip():
@@ -164,8 +156,7 @@ if uploaded_file:
         st.text_area("Preview", text[:1000])
 
         st.markdown("### 📄 Document Preview (Red = flagged)")
-        highlighted = highlight_red_flags(text)
-        st.markdown(f"<div style='white-space: pre-wrap'>{highlighted}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='white-space: pre-wrap'>{highlight_red_flags(text)}</div>", unsafe_allow_html=True)
 
         st.subheader("🔺 Red Flags & Follow-Ups")
         for pattern in RED_FLAGS:
@@ -175,12 +166,10 @@ if uploaded_file:
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button(f"🔍 Explain: {match}", key=f"explain_{match}"):
-                        explanation = ask_gpt(f"Explain why this could be a red flag: '{match}'", model=model_choice)
-                        st.info(explanation)
+                        st.info(ask_gpt(f"Explain why this could be a red flag: '{match}'", model=model_choice))
                 with col2:
                     if st.button(f"💡 Negotiate: {match}", key=f"negotiate_{match}"):
-                        suggestion = ask_gpt(f"How might someone negotiate or improve this clause: '{match}'", model=model_choice)
-                        st.success(suggestion)
+                        st.success(ask_gpt(f"How might someone negotiate or improve this clause: '{match}'", model=model_choice))
 
         sections = {
             "Parties & Roles": f"In this {document_type}, who are the involved parties and what are their roles?",
@@ -196,44 +185,28 @@ if uploaded_file:
         output_sections = {}
         for section, prompt in sections.items():
             st.subheader(section)
-            response = ask_gpt(prompt + "\n\n" + text, model=model_choice)
-            st.text_area(section, response, height=300)
-            output_sections[section] = response
+            result = ask_gpt(prompt + "\n\n" + text, model=model_choice)
+            st.text_area(section, result, height=300)
+            output_sections[section] = result
 
         st.subheader("Custom Question")
         user_q = st.text_input("Ask a question about the document")
         if user_q:
             answer = ask_gpt(f"Document type: {document_type}\n\nDocument:\n{text}\n\nQuestion: {user_q}", model=model_choice)
             st.text_area("Answer", answer, height=200)
-            components.html("""
-<script>
-  window.plausible = window.plausible || function () {
-    (window.plausible.q = window.plausible.q || []).push(arguments)
-  };
-  plausible('custom_question');
-</script>
-""", height=0)
+            components.html("<script>plausible('custom_question')</script>", height=0)
 
         compiled_context = f"Document Type: {document_type}\n\nExtracted Summary:\n\n"
         for title, content in output_sections.items():
             compiled_context += f"--- {title.upper()} ---\n{content}\n\n"
         st.session_state.doc_context = compiled_context
 
-        filename = "document_review_summary.pdf"
-        save_as_pdf(compiled_context, filename)
-
-        with open(filename, "rb") as file:
+        save_as_pdf(compiled_context, "summary.pdf")
+        with open("summary.pdf", "rb") as file:
             b64 = base64.b64encode(file.read()).decode()
-            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">📅 Download PDF Summary</a>'
+            href = f'<a href="data:application/octet-stream;base64,{b64}" download="summary.pdf">📅 Download PDF Summary</a>'
             st.markdown(href, unsafe_allow_html=True)
-            components.html("""
-<script>
-  window.plausible = window.plausible || function () {
-    (window.plausible.q = window.plausible.q || []).push(arguments)
-  };
-  plausible('download_summary');
-</script>
-""", height=0)
+            components.html("<script>plausible('download_summary')</script>", height=0)
 
         st.session_state.history.append({
             "type": document_type,
@@ -260,13 +233,12 @@ for msg in st.session_state.chat_history:
     st.chat_message(msg["role"]).markdown(msg["content"])
 
 user_input = st.chat_input("Ask a question about the uploaded document...")
-
 if user_input:
     if st.session_state.doc_context:
         st.session_state.chat_history.append({"role": "user", "content": user_input})
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
-                prompt = f"""You are a document review assistant. A user has uploaded a {document_type}. The summary of the document is:\n\n{st.session_state.doc_context}\n\nThe user is asking: {user_input}"""
+                prompt = f"You are a document review assistant. A user has uploaded a {document_type}. The summary of the document is:\n\n{st.session_state.doc_context}\n\nThe user is asking: {user_input}"
                 reply = ask_gpt(prompt, model=model_choice)
                 st.session_state.chat_history.append({"role": "assistant", "content": reply})
                 st.markdown(reply)
