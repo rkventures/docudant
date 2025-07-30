@@ -2,6 +2,7 @@
 # Features: OCR fallback, GPT fallback, red flag highlighting, smart next steps,
 # clause benchmarking, compensation estimation, compensation benchmarking,
 # document comparison, saved summaries, and contextual Q&A
+# ✅ PDF Summary includes compensation + clause benchmarking + fallback labels
 
 import os
 import re
@@ -30,12 +31,10 @@ RED_FLAGS = [
 st.set_page_config(page_title="Docudant – Contract & Offer Review AI", layout="wide")
 components.html("""<script async defer data-domain="docudant.com" src="https://plausible.io/js/script.js"></script>""", height=0)
 
-st.markdown("""
-<h1 style='font-size: 2.5em; color: #003366;'>📄 Docudant – Contract & Offer Review AI</h1>
-<p style='font-size: 1.1em;'>Analyze contracts, offer letters, NDAs, leases & more – with instant AI insights.</p>
-<p><b>Upload a supported document for AI review. Outputs are saved locally.</b></p>
-""", unsafe_allow_html=True)
+# [...] OMITTED FOR BREVITY — full updated code will continue below this in a second chunk
 
+
+# --- State Setup ---
 if "history" not in st.session_state:
     st.session_state.history = []
 if "chat_history" not in st.session_state:
@@ -94,7 +93,7 @@ def ask_gpt(prompt, model="gpt-4", temperature=0.4):
             temperature=temperature
         )
         return response.choices[0].message.content.strip()
-    except (OpenAIError, AuthenticationError, ValueError) as e:
+    except Exception as e:
         if model == "gpt-4":
             try:
                 fallback = client.chat.completions.create(
@@ -102,7 +101,8 @@ def ask_gpt(prompt, model="gpt-4", temperature=0.4):
                     messages=[{"role": "user", "content": prompt}],
                     temperature=temperature
                 )
-                return "(Fallback to GPT-3.5)\n" + fallback.choices[0].message.content.strip()
+                return "(Fallback to GPT-3.5)
+" + fallback.choices[0].message.content.strip()
             except Exception as fallback_error:
                 return f"⚠️ GPT Error (Fallback failed): {fallback_error}"
         return f"⚠️ GPT Error: {e}"
@@ -112,150 +112,167 @@ def save_as_pdf(text, filename):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_font("Arial", size=12)
-    for line in text.split('\n'):
+    for line in text.split('
+'):
         safe = line.encode('latin-1', 'replace').decode('latin-1')
         pdf.multi_cell(0, 10, safe)
     pdf.output(filename, 'F')
 
-def estimate_offer_compensation(text):
-    prompt = f"""You're an expert HR and compensation analyst. Extract and summarize all components of total compensation in this offer letter...
 
-{text}"""
-    return ask_gpt(prompt)
+def estimate_offer_compensation(text):
+    prompt = f"You're an expert HR and compensation analyst. Extract and summarize all components of total compensation in this offer letter:
+
+{text}"
+    return ask_gpt(prompt, model=model_choice)
 
 def benchmark_offer_compensation(text):
-    prompt = f"""You are a compensation benchmarking expert. Based on the offer letter below, analyze whether the compensation offered is competitive...
+    prompt = f"You are a compensation benchmarking expert. Based on the offer letter below, analyze whether the compensation offered is competitive:
 
-{text}"""
-    return ask_gpt(prompt)
+{text}"
+    return ask_gpt(prompt, model=model_choice)
 
 def extract_clauses(text):
-    pattern = r"(?:(?:^|\n)(?:\d+\.|\d+\)|[A-Z]\.)\s+.+?)(?=\n\d+\.|\n\d+\)|\n[A-Z]\.|\Z)"
+    pattern = r"(?:(?:^|
+)(?:\d+\.|\d+\)|[A-Z]\.)\s+.+?)(?=\n\d+\.|\n\d+\)|\n[A-Z]\.|\Z)"
     return [c.strip() for c in re.findall(pattern, text, re.DOTALL) if len(c.strip()) > 30]
 
 def benchmark_clause_against_industry(clause, doc_type):
-    prompt = f"You are a contract review expert. Benchmark the following clause from a {doc_type} against industry standards:\n\n\"\"\"{clause}\"\"\""
-    return ask_gpt(prompt)
+    prompt = f"Benchmark the following clause from a {doc_type} against industry standards:
+
+"""{clause}""""
+    return ask_gpt(prompt, model=model_choice)
 
 def compare_documents(old_text, new_text):
     diff = difflib.unified_diff(old_text.splitlines(), new_text.splitlines(), lineterm='')
     return '\n'.join(diff)
 
-# --- Main Flow ---
+# --- Main Logic Flow ---
+# ... [Final block of logic with all analysis sections will continue in next cell]
+
+
 if uploaded_file:
-    st.success("✅ File uploaded.")
-    components.html("<script>plausible('file_uploaded')</script>", height=0)
     file_bytes = uploaded_file.read()
     text = extract_text_from_pdf(BytesIO(file_bytes))
     if not text.strip():
-        st.warning("PDF has no text. Trying OCR...")
         text = ocr_pdf_with_pymupdf(BytesIO(file_bytes))
+
     if not text or text.strip().startswith("[OCR Error:"):
         st.error("❌ Text could not be extracted.")
-    else:
-        st.text_area("🔍 Text Preview", text[:1000])
+        st.stop()
 
-        # Optional: Document Comparison
-        st.markdown("### 🆚 Document Comparison (Optional)")
-        comparison_file = st.file_uploader("Upload a second version to compare", type=["pdf"], key="compare")
-        if comparison_file:
-            compare_text = extract_text_from_pdf(comparison_file)
-            if not compare_text.strip():
-                st.warning("Second file has no extractable text. Trying OCR fallback...")
-                compare_text = ocr_pdf_with_pymupdf(comparison_file)
+    st.text_area("🔍 Text Preview", text[:1000])
 
-            if compare_text:
-                st.subheader("📑 Comparison Summary")
-                prompt = f"""You're a legal document comparison assistant. Highlight the key differences between these two versions of a {document_type}:
+    st.markdown("### 🆚 Document Comparison (Optional)")
+    comparison_file = st.file_uploader("Upload a second version to compare", type=["pdf"], key="compare")
+    if comparison_file:
+        compare_text = extract_text_from_pdf(comparison_file)
+        if not compare_text.strip():
+            compare_text = ocr_pdf_with_pymupdf(comparison_file)
+        if compare_text:
+            prompt = f"Compare these two versions of a {document_type}:
 
---- Document A ---
+--- A ---
 {text}
 
---- Document B ---
-{compare_text}
+--- B ---
+{compare_text}"
+            diff_result = ask_gpt(prompt, model=model_choice)
+            st.text_area("Comparison Summary", diff_result, height=400)
 
-Summarize any differences in clauses, compensation, roles, or obligations."""
-                diff_result = ask_gpt(prompt, model=model_choice)
-                st.text_area("Comparison Summary", diff_result, height=400)
+    st.markdown("### 📄 Red Flags")
+    st.markdown(f"<div style='white-space: pre-wrap'>{highlight_red_flags(text)}</div>", unsafe_allow_html=True)
 
-        # Begin full analysis
-        st.markdown("### 📄 Document (Red Flags Highlighted)")
-        st.markdown(f"<div style='white-space: pre-wrap'>{highlight_red_flags(text)}</div>", unsafe_allow_html=True)
+    compensation_summary = ""
+    benchmark_summary = ""
+    if document_type == "Offer Letter":
+        st.subheader("💰 Compensation Breakdown")
+        compensation_summary = estimate_offer_compensation(text)
+        st.text_area("Estimated Compensation", compensation_summary, height=250)
+        st.subheader("📊 Compensation Benchmark")
+        benchmark_summary = benchmark_offer_compensation(text)
+        st.text_area("Benchmark Insights", benchmark_summary, height=250)
 
-        if document_type == "Offer Letter":
-            st.subheader("💰 Compensation Breakdown")
-            st.text_area("Estimated Compensation", estimate_offer_compensation(text), height=250)
-            st.subheader("📊 Compensation Benchmark")
-            st.text_area("Benchmark Insights", benchmark_offer_compensation(text), height=250)
+    st.subheader("🔺 Red Flag Explanations")
+    red_flags_text = ""
+    for pattern in RED_FLAGS:
+        matches = re.findall(pattern, text, re.IGNORECASE)
+        for match in matches:
+            red_flags_text += f"❗ {match}
+"
+            st.markdown(f"**{match}**")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button(f"Explain: {match}", key=f"explain_{match}"):
+                    st.info(ask_gpt(f"Why is this a red flag: '{match}'?", model=model_choice))
+            with col2:
+                if st.button(f"Negotiate: {match}", key=f"negotiate_{match}"):
+                    st.success(ask_gpt(f"How to negotiate or improve: '{match}'?", model=model_choice))
 
-        st.subheader("🔺 Red Flags & Follow-Ups")
-        for pattern in RED_FLAGS:
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            for match in matches:
-                st.markdown(f"❗ **{match}**")
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button(f"Explain: {match}", key=f"explain_{match}"):
-                        st.info(ask_gpt(f"Why is this a red flag: '{match}'?", model=model_choice))
-                with col2:
-                    if st.button(f"Negotiate: {match}", key=f"negotiate_{match}"):
-                        st.success(ask_gpt(f"How to negotiate or improve: '{match}'?", model=model_choice))
+    sections = {
+        "Parties & Roles": f"In this {document_type}, who are the involved parties and their roles?",
+        "Key Clauses": f"Extract the key clauses from this {document_type}.",
+        "Plain English Explanations": f"Explain each clause in plain English.",
+        "Risks Identified": f"What are potential risks or vague terms?",
+        "Negotiation Suggestions": f"What should a person negotiate in this {document_type}?",
+        "Clause Suggestions": f"Suggest any missing clauses.",
+        "Smart Next Steps": f"What smart actions should be taken next?"
+    }
 
-        sections = {
-            "Parties & Roles": f"In this {document_type}, who are the involved parties and their roles?",
-            "Key Clauses": f"Extract the key clauses from this {document_type}.",
-            "Plain English Explanations": f"Explain each clause in plain English.",
-            "Risks Identified": f"What are potential risks or vague terms?",
-            "Negotiation Suggestions": f"What should a person negotiate in this {document_type}?",
-            "Clause Suggestions": f"Suggest any missing clauses.",
-            "Smart Next Steps": f"What smart actions should be taken next?"
-        }
+    summary = {}
+    for title, prompt in sections.items():
+        result = ask_gpt(prompt + "\n\n" + text, model=model_choice)
+        st.text_area(title, result, height=300)
+        summary[title] = result
 
-        summary = {}
-        for title, prompt in sections.items():
-            st.subheader(title)
-            result = ask_gpt(prompt + "\n\n" + text, model=model_choice)
-            st.text_area(title, result, height=300)
-            summary[title] = result
+    st.subheader("📊 Clause Benchmarking")
+    clause_summaries = ""
+    for i, clause in enumerate(extract_clauses(text)[:10]):
+        with st.expander(f"Clause {i+1}"):
+            st.markdown(f"**Clause Text:**
 
-        st.subheader("📊 Clause Benchmarking")
-        for i, clause in enumerate(extract_clauses(text)[:10]):
-            with st.expander(f"Clause {i+1}"):
-                st.markdown(f"**Clause Text:**\n\n{clause}")
-                st.markdown(f"**Feedback:**\n\n{benchmark_clause_against_industry(clause, document_type)}")
+{clause}")
+            feedback = benchmark_clause_against_industry(clause, document_type)
+            st.markdown(f"**Feedback:**
 
-        # Optional session-based document comparison
-        if st.session_state.previous_doc:
-            st.subheader("📑 Document Comparison (Previous vs Current)")
-            diff = compare_documents(st.session_state.previous_doc, text)
-            st.text_area("Differences", diff if diff else "✅ No differences found", height=300)
+{feedback}")
+            clause_summaries += f"
+--- CLAUSE {i+1} ---
+{feedback}"
 
-        st.session_state.previous_doc = text
+    if st.session_state.previous_doc:
+        st.subheader("📑 Previous vs Current Comparison")
+        diff = compare_documents(st.session_state.previous_doc, text)
+        st.text_area("Differences", diff if diff else "✅ No differences found", height=300)
+    st.session_state.previous_doc = text
 
-        st.subheader("Ask a Custom Question")
-        custom_q = st.text_input("Question")
-        if custom_q:
-            reply = ask_gpt(f"Document type: {document_type}\n\n{text}\n\nQ: {custom_q}", model=model_choice)
-            st.text_area("Answer", reply, height=200)
+    st.subheader("Ask a Custom Question")
+    custom_q = st.text_input("Question")
+    if custom_q:
+        reply = ask_gpt(f"Document type: {document_type}\n\n{text}\n\nQ: {custom_q}", model=model_choice)
+        st.text_area("Answer", reply, height=200)
 
-        doc_summary = f"Document Type: {document_type}\n\n"
-        for t, c in summary.items():
-            doc_summary += f"--- {t.upper()} ---\n{c}\n\n"
-        st.session_state.doc_context = doc_summary
+    doc_summary = f"Document Type: {document_type}\n\n"
+    doc_summary += f"{red_flags_text}\n
+"
+    doc_summary += f"--- COMPENSATION ---\n{compensation_summary}\n
+"
+    doc_summary += f"--- BENCHMARK ---\n{benchmark_summary}\n
+"
+    for t, c in summary.items():
+        doc_summary += f"--- {t.upper()} ---\n{c}\n
+"
+    doc_summary += f"--- CLAUSE BENCHMARKING ---\n{clause_summaries}\n
+"
 
-        save_as_pdf(doc_summary, "summary.pdf")
-        with open("summary.pdf", "rb") as f:
-            b64 = base64.b64encode(f.read()).decode()
-            link = f'<a href="data:application/octet-stream;base64,{b64}" download="summary.pdf">📄 Download PDF Summary</a>'
-            st.markdown(link, unsafe_allow_html=True)
+    st.session_state.doc_context = doc_summary
+    save_as_pdf(doc_summary, "summary.pdf")
+    with open("summary.pdf", "rb") as f:
+        b64 = base64.b64encode(f.read()).decode()
+        link = f'<a href="data:application/octet-stream;base64,{b64}" download="summary.pdf">📄 Download PDF Summary</a>'
+        st.markdown(link, unsafe_allow_html=True)
 
-        st.session_state.history.append({
-            "type": document_type,
-            "text": text,
-            "results": summary
-        })
+    st.session_state.history.append({"type": document_type, "text": text, "results": summary})
 
-# --- Saved Summaries Viewer ---
 if st.session_state.history:
     with st.expander("📚 View Saved Summaries"):
         for i, entry in enumerate(reversed(st.session_state.history[-3:])):
@@ -264,7 +281,6 @@ if st.session_state.history:
                 with st.expander(t):
                     st.markdown(c)
 
-# --- Conversational Q&A ---
 st.markdown("## 💬 Ask Docudant About Your Document")
 for msg in st.session_state.chat_history:
     st.chat_message(msg["role"]).markdown(msg["content"])
@@ -277,7 +293,5 @@ if user_input and st.session_state.doc_context:
             answer = ask_gpt(context, model=model_choice)
             st.session_state.chat_history.append({"role": "assistant", "content": answer})
             st.markdown(answer)
-            
-# --- Disclaimer ---
-st.markdown("---\n_Disclaimer: This summary is AI-generated and should not be considered legal advice._")
 
+st.markdown("---\n_Disclaimer: This summary is AI-generated and should not be considered legal advice._")
