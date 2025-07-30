@@ -164,23 +164,6 @@ Clause:
 Provide feedback on whether the clause is standard, overly aggressive, or missing protections. Suggest improvements."""
     return ask_gpt(prompt)
 
-# In the main analysis section – replace old Clause Benchmarking section:
-sections = {
-            "Parties & Roles": f"In this {document_type}, who are the involved parties and what are their roles?",
-            "Key Clauses": f"Extract the key clauses from this {document_type}.",
-            "Plain English Explanations": f"Explain each clause in plain English.",
-            "Risks Identified": f"What are potential risks or vague/missing terms in this {document_type}?",
-            "Negotiation Suggestions": f"What should a professional negotiate or ask for in this {document_type}?",
-            "Clause Suggestions": f"Suggest any missing clauses for a typical {document_type}.",
-            "Smart Next Steps": f"Based on this {document_type}, suggest smart next steps."
-        }
-
-output_sections = {}
-for section, prompt in sections.items():
-    st.subheader(section)
-    result = ask_gpt(prompt + "\n\n" + text, model=model_choice)
-    st.text_area(section, result, height=300)
-    output_sections[section] = result
 
 # New: Clause Benchmarking v2
 st.subheader("📊 Clause Benchmarking (Per-Clause Review)")
