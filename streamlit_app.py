@@ -165,7 +165,7 @@ Provide feedback on whether the clause is standard, overly aggressive, or missin
     return ask_gpt(prompt)
 
 # In the main analysis section – replace old Clause Benchmarking section:
-        sections = {
+sections = {
             "Parties & Roles": f"In this {document_type}, who are the involved parties and what are their roles?",
             "Key Clauses": f"Extract the key clauses from this {document_type}.",
             "Plain English Explanations": f"Explain each clause in plain English.",
@@ -175,7 +175,7 @@ Provide feedback on whether the clause is standard, overly aggressive, or missin
             "Smart Next Steps": f"Based on this {document_type}, suggest smart next steps."
         }
 
-        output_sections = {}
+output_sections = {}
         for section, prompt in sections.items():
             st.subheader(section)
             result = ask_gpt(prompt + "\n\n" + text, model=model_choice)
