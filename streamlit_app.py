@@ -1,4 +1,4 @@
-# ✅ Docudant – Final Streamlit App (with model protection)
+# ✅ Docudant – Final Streamlit App (with model protection and Plausible event fix)
 
 import os
 import re
@@ -26,7 +26,9 @@ RED_FLAGS = [
 
 # --- Page Config & Analytics ---
 st.set_page_config(page_title="Docudant – Contract & Offer Review AI", layout="wide")
-components.html("""<script async defer data-domain="docudant.com" src="https://plausible.io/js/script.js"></script>""", height=0)
+components.html("""
+<script async defer data-domain="docudant.com" src="https://plausible.io/js/script.js"></script>
+""", height=0)
 
 # --- Header ---
 st.markdown("""
@@ -104,7 +106,7 @@ def ask_gpt(prompt, model="gpt-4", temperature=0.4):
         )
         return response.choices[0].message.content.strip()
     except (AuthenticationError, OpenAIError, ValueError) as e:
-        return f"\u26A0\ufe0f GPT Error: {e}"
+        return f"⚠️ GPT Error: {e}"
 
 def save_as_pdf(text, filename):
     pdf = FPDF()
@@ -130,19 +132,33 @@ if doc1 and doc2:
     compare_prompt = f"Compare the following two {document_type} documents and summarize the differences.\n\nDocument A:\n{text1}\n\nDocument B:\n{text2}"
     comparison_result = ask_gpt(compare_prompt, model=model_choice)
     st.text_area("Comparison Summary", comparison_result, height=300)
-    components.html("<script>plausible('doc_comparison')</script>", height=0)
+    components.html("""
+<script>
+  window.plausible = window.plausible || function () {
+    (window.plausible.q = window.plausible.q || []).push(arguments)
+  };
+  plausible('doc_comparison');
+</script>
+""", height=0)
 
 # --- Main File Upload Flow ---
 if uploaded_file:
-    st.success("\u2705 File uploaded successfully.")
-    components.html("<script>plausible('file_uploaded')</script>", height=0)
+    st.success("✅ File uploaded successfully.")
+    components.html("""
+<script>
+  window.plausible = window.plausible || function () {
+    (window.plausible.q = window.plausible.q || []).push(arguments)
+  };
+  plausible('file_uploaded');
+</script>
+""", height=0)
     file_bytes = uploaded_file.read()
     text = extract_text_from_pdf(BytesIO(file_bytes))
     if not text.strip():
         st.warning("PDF appears to contain no extractable text. Attempting OCR fallback...")
         text = ocr_pdf_with_pymupdf(BytesIO(file_bytes))
     if not text or text.strip().startswith("[OCR Error:"):
-        st.error("\u274C No readable text could be extracted from this PDF.")
+        st.error("❌ No readable text could be extracted from this PDF.")
     else:
         st.markdown("### 🔍 Extracted Text Preview")
         st.text_area("Preview", text[:1000])
@@ -189,7 +205,14 @@ if uploaded_file:
         if user_q:
             answer = ask_gpt(f"Document type: {document_type}\n\nDocument:\n{text}\n\nQuestion: {user_q}", model=model_choice)
             st.text_area("Answer", answer, height=200)
-            components.html("<script>plausible('custom_question')</script>", height=0)
+            components.html("""
+<script>
+  window.plausible = window.plausible || function () {
+    (window.plausible.q = window.plausible.q || []).push(arguments)
+  };
+  plausible('custom_question');
+</script>
+""", height=0)
 
         compiled_context = f"Document Type: {document_type}\n\nExtracted Summary:\n\n"
         for title, content in output_sections.items():
@@ -201,9 +224,16 @@ if uploaded_file:
 
         with open(filename, "rb") as file:
             b64 = base64.b64encode(file.read()).decode()
-            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">📥 Download PDF Summary</a>'
+            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">📅 Download PDF Summary</a>'
             st.markdown(href, unsafe_allow_html=True)
-            components.html("<script>plausible('download_summary')</script>", height=0)
+            components.html("""
+<script>
+  window.plausible = window.plausible || function () {
+    (window.plausible.q = window.plausible.q || []).push(arguments)
+  };
+  plausible('download_summary');
+</script>
+""", height=0)
 
         st.session_state.history.append({
             "type": document_type,
