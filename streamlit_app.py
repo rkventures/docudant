@@ -101,7 +101,7 @@ def ask_gpt(prompt, model="gpt-4", temperature=0.4):
                     messages=[{"role": "user", "content": prompt}],
                     temperature=temperature
                 )
-                return "(Fallback to GPT-3.5)
+                return "(Fallback to GPT-3.5)"
 " + fallback.choices[0].message.content.strip()
             except Exception as fallback_error:
                 return f"⚠️ GPT Error (Fallback failed): {fallback_error}"
