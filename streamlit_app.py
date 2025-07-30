@@ -176,14 +176,14 @@ sections = {
         }
 
 output_sections = {}
-        for section, prompt in sections.items():
+for section, prompt in sections.items():
             st.subheader(section)
             result = ask_gpt(prompt + "\n\n" + text, model=model_choice)
             st.text_area(section, result, height=300)
             output_sections[section] = result
 
-        # New: Clause Benchmarking v2
-        st.subheader("📊 Clause Benchmarking (Per-Clause Review)")
+# New: Clause Benchmarking v2
+st.subheader("📊 Clause Benchmarking (Per-Clause Review)")
         clauses = extract_clauses(text)
         for i, clause in enumerate(clauses[:10]):  # Limit to first 10 for performance
             with st.expander(f"Clause {i+1}"):
