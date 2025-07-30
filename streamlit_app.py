@@ -1,4 +1,4 @@
-# ✅ Docudant – Final Streamlit App (with conversational UI + red flag follow-ups)
+# ✅ Docudant – Final Streamlit App (with model protection)
 
 import os
 import re
@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 from PIL import Image
 from io import BytesIO
 from PyPDF2 import PdfReader
-from openai import OpenAI, AuthenticationError
+from openai import OpenAI, AuthenticationError, OpenAIError
 from dotenv import load_dotenv
 import base64
 from fpdf import FPDF
@@ -45,6 +45,11 @@ if "doc_context" not in st.session_state:
 
 # --- Model and Document Type ---
 model_choice = st.radio("Select model", ["gpt-4", "gpt-3.5-turbo"], horizontal=True)
+ALLOWED_MODELS = ["gpt-4", "gpt-3.5-turbo"]
+if model_choice not in ALLOWED_MODELS:
+    st.error("⚠️ Invalid model selected. Please choose a supported model.")
+    st.stop()
+
 document_type = st.selectbox("Select document type:", [
     "Contract", "Offer Letter", "Employment Agreement", "NDA", "Equity Grant", "Lease Agreement",
     "MSA", "Freelance / Custom Agreement", "Insurance Document", "Healthcare Agreement"
@@ -90,14 +95,16 @@ def highlight_red_flags(text):
 
 def ask_gpt(prompt, model="gpt-4", temperature=0.4):
     try:
+        if model not in ALLOWED_MODELS:
+            raise ValueError(f"Model '{model}' is not allowed.")
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=temperature
         )
         return response.choices[0].message.content.strip()
-    except AuthenticationError as e:
-        return f"\u26A0\ufe0f Error: {e}"
+    except (AuthenticationError, OpenAIError, ValueError) as e:
+        return f"\u26A0\ufe0f GPT Error: {e}"
 
 def save_as_pdf(text, filename):
     pdf = FPDF()
@@ -144,7 +151,6 @@ if uploaded_file:
         highlighted = highlight_red_flags(text)
         st.markdown(f"<div style='white-space: pre-wrap'>{highlighted}</div>", unsafe_allow_html=True)
 
-        # 🔺 Red Flag Smart Follow-ups
         st.subheader("🔺 Red Flags & Follow-Ups")
         for pattern in RED_FLAGS:
             matches = re.findall(pattern, text, flags=re.IGNORECASE)
@@ -160,7 +166,6 @@ if uploaded_file:
                         suggestion = ask_gpt(f"How might someone negotiate or improve this clause: '{match}'", model=model_choice)
                         st.success(suggestion)
 
-        # 📚 Sectional GPT Analysis
         sections = {
             "Parties & Roles": f"In this {document_type}, who are the involved parties and what are their roles?",
             "Key Clauses": f"Extract the key clauses from this {document_type}.",
@@ -186,7 +191,6 @@ if uploaded_file:
             st.text_area("Answer", answer, height=200)
             components.html("<script>plausible('custom_question')</script>", height=0)
 
-        # Save context for Q&A
         compiled_context = f"Document Type: {document_type}\n\nExtracted Summary:\n\n"
         for title, content in output_sections.items():
             compiled_context += f"--- {title.upper()} ---\n{content}\n\n"
