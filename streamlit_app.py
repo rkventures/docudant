@@ -154,6 +154,31 @@ if uploaded_file:
         st.error("❌ Text could not be extracted.")
     else:
         st.text_area("🔍 Text Preview", text[:1000])
+
+        # Optional: Document Comparison
+        st.markdown("### 🆚 Document Comparison (Optional)")
+        comparison_file = st.file_uploader("Upload a second version to compare", type=["pdf"], key="compare")
+        if comparison_file:
+            compare_text = extract_text_from_pdf(comparison_file)
+            if not compare_text.strip():
+                st.warning("Second file has no extractable text. Trying OCR fallback...")
+                compare_text = ocr_pdf_with_pymupdf(comparison_file)
+
+            if compare_text:
+                st.subheader("📑 Comparison Summary")
+                prompt = f"""You're a legal document comparison assistant. Highlight the key differences between these two versions of a {document_type}:
+
+--- Document A ---
+{text}
+
+--- Document B ---
+{compare_text}
+
+Summarize any differences in clauses, compensation, roles, or obligations."""
+                diff_result = ask_gpt(prompt, model=model_choice)
+                st.text_area("Comparison Summary", diff_result, height=400)
+
+        # Begin full analysis
         st.markdown("### 📄 Document (Red Flags Highlighted)")
         st.markdown(f"<div style='white-space: pre-wrap'>{highlight_red_flags(text)}</div>", unsafe_allow_html=True)
 
@@ -199,6 +224,7 @@ if uploaded_file:
                 st.markdown(f"**Clause Text:**\n\n{clause}")
                 st.markdown(f"**Feedback:**\n\n{benchmark_clause_against_industry(clause, document_type)}")
 
+        # Optional session-based document comparison
         if st.session_state.previous_doc:
             st.subheader("📑 Document Comparison (Previous vs Current)")
             diff = compare_documents(st.session_state.previous_doc, text)
@@ -251,6 +277,7 @@ if user_input and st.session_state.doc_context:
             answer = ask_gpt(context, model=model_choice)
             st.session_state.chat_history.append({"role": "assistant", "content": answer})
             st.markdown(answer)
-
+            
 # --- Disclaimer ---
 st.markdown("---\n_Disclaimer: This summary is AI-generated and should not be considered legal advice._")
+
