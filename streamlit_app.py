@@ -93,7 +93,8 @@ def ask_gpt(prompt, model="gpt-4", temperature=0.4):
             temperature=temperature
         )
         return response.choices[0].message.content.strip()
-    except Exception as e:
+    
+    except (OpenAIError, AuthenticationError, ValueError, Exception) as e:
         if model == "gpt-4":
             try:
                 fallback = client.chat.completions.create(
@@ -101,8 +102,7 @@ def ask_gpt(prompt, model="gpt-4", temperature=0.4):
                     messages=[{"role": "user", "content": prompt}],
                     temperature=temperature
                 )
-                return "(Fallback to GPT-3.5)"
-" + fallback.choices[0].message.content.strip()
+                return "(Fallback to GPT-3.5)\n" + fallback.choices[0].message.content.strip()
             except Exception as fallback_error:
                 return f"⚠️ GPT Error (Fallback failed): {fallback_error}"
         return f"⚠️ GPT Error: {e}"
@@ -112,35 +112,39 @@ def save_as_pdf(text, filename):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_font("Arial", size=12)
-    for line in text.split('
-'):
+    for line in text.split('\n'):  # ✅ FIXED: Newline delimiter corrected
         safe = line.encode('latin-1', 'replace').decode('latin-1')
         pdf.multi_cell(0, 10, safe)
     pdf.output(filename, 'F')
 
 
 def estimate_offer_compensation(text):
-    prompt = f"You're an expert HR and compensation analyst. Extract and summarize all components of total compensation in this offer letter:
+    prompt = f"""You're an expert HR and compensation analyst. Extract and summarize all components of total compensation in this offer letter:
 
-{text}"
+{text}"""
     return ask_gpt(prompt, model=model_choice)
+
 
 def benchmark_offer_compensation(text):
-    prompt = f"You are a compensation benchmarking expert. Based on the offer letter below, analyze whether the compensation offered is competitive:
+    prompt = f"""You are a compensation benchmarking expert. Based on the offer letter below, analyze whether the compensation offered is competitive:
 
-{text}"
+{text}"""
     return ask_gpt(prompt, model=model_choice)
+
 
 def extract_clauses(text):
-    pattern = r"(?:(?:^|
-)(?:\d+\.|\d+\)|[A-Z]\.)\s+.+?)(?=\n\d+\.|\n\d+\)|\n[A-Z]\.|\Z)"
+    # ✅ FIXED: Pattern indentation and newlines for bullet/numbered clauses
+    pattern = r"(?:(?:^|\n)(?:\d+\.|\d+\)|[A-Z]\.)\s+.+?)(?=\n\d+\.|\n\d+\)|\n[A-Z]\.|\Z)"
     return [c.strip() for c in re.findall(pattern, text, re.DOTALL) if len(c.strip()) > 30]
 
-def benchmark_clause_against_industry(clause, doc_type):
-    prompt = f"Benchmark the following clause from a {doc_type} against industry standards:
 
-"""{clause}""""
+def benchmark_clause_against_industry(clause, doc_type):
+    # ✅ FIXED: triple quotes were unbalanced
+    prompt = f"""Benchmark the following clause from a {doc_type} against industry standards:
+
+\"\"\"{clause}\"\"\""""
     return ask_gpt(prompt, model=model_choice)
+
 
 def compare_documents(old_text, new_text):
     diff = difflib.unified_diff(old_text.splitlines(), new_text.splitlines(), lineterm='')
@@ -169,13 +173,7 @@ if uploaded_file:
         if not compare_text.strip():
             compare_text = ocr_pdf_with_pymupdf(comparison_file)
         if compare_text:
-            prompt = f"Compare these two versions of a {document_type}:
-
---- A ---
-{text}
-
---- B ---
-{compare_text}"
+            prompt = f"Compare these two versions of a {document_type}:\n\n--- A ---\n{text}\n\n--- B ---\n{compare_text}"
             diff_result = ask_gpt(prompt, model=model_choice)
             st.text_area("Comparison Summary", diff_result, height=400)
 
@@ -197,8 +195,7 @@ if uploaded_file:
     for pattern in RED_FLAGS:
         matches = re.findall(pattern, text, re.IGNORECASE)
         for match in matches:
-            red_flags_text += f"❗ {match}
-"
+            red_flags_text += f"❗ {match}\n"
             st.markdown(f"**{match}**")
             col1, col2 = st.columns(2)
             with col1:
@@ -228,16 +225,10 @@ if uploaded_file:
     clause_summaries = ""
     for i, clause in enumerate(extract_clauses(text)[:10]):
         with st.expander(f"Clause {i+1}"):
-            st.markdown(f"**Clause Text:**
-
-{clause}")
+            st.markdown(f"""**Clause Text:**\n\n{clause}""")
             feedback = benchmark_clause_against_industry(clause, document_type)
-            st.markdown(f"**Feedback:**
-
-{feedback}")
-            clause_summaries += f"
---- CLAUSE {i+1} ---
-{feedback}"
+            st.markdown(f"""**Feedback:**\n\n{feedback}""")
+            clause_summaries += f"--- CLAUSE {i+1} ---\n{feedback}\n"
 
     if st.session_state.previous_doc:
         st.subheader("📑 Previous vs Current Comparison")
@@ -251,18 +242,14 @@ if uploaded_file:
         reply = ask_gpt(f"Document type: {document_type}\n\n{text}\n\nQ: {custom_q}", model=model_choice)
         st.text_area("Answer", reply, height=200)
 
+    # ✅ This block must be indented
     doc_summary = f"Document Type: {document_type}\n\n"
-    doc_summary += f"{red_flags_text}\n
-"
-    doc_summary += f"--- COMPENSATION ---\n{compensation_summary}\n
-"
-    doc_summary += f"--- BENCHMARK ---\n{benchmark_summary}\n
-"
+    doc_summary += f"{red_flags_text}\n"
+    doc_summary += f"--- COMPENSATION ---\n{compensation_summary}\n"
+    doc_summary += f"--- BENCHMARK ---\n{benchmark_summary}\n"
     for t, c in summary.items():
-        doc_summary += f"--- {t.upper()} ---\n{c}\n
-"
-    doc_summary += f"--- CLAUSE BENCHMARKING ---\n{clause_summaries}\n
-"
+        doc_summary += f"--- {t.upper()} ---\n{c}\n"
+    doc_summary += f"--- CLAUSE BENCHMARKING ---\n{clause_summaries}\n"
 
     st.session_state.doc_context = doc_summary
     save_as_pdf(doc_summary, "summary.pdf")
