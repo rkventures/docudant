@@ -49,6 +49,7 @@ document_type = st.selectbox("Select document type:", [
     "Contract", "Offer Letter", "Employment Agreement", "NDA", "Equity Grant", "Lease Agreement",
     "MSA", "Freelance / Custom Agreement", "Insurance Document", "Healthcare Agreement"
 ])
+debug_mode = st.sidebar.checkbox("🔧 Enable Debug Mode")
 uploaded_file = st.file_uploader("Upload your PDF document", type=["pdf"])
 ALLOWED_MODELS = ["gpt-4", "gpt-3.5-turbo"]
 if model_choice not in ALLOWED_MODELS:
@@ -164,6 +165,11 @@ if uploaded_file:
         st.error("❌ Text could not be extracted.")
         st.stop()
 
+    if debug_mode:
+    st.sidebar.write("✅ Text Length:", len(text))
+    st.sidebar.write("✅ Extracted Clauses:", len(extract_clauses(text)))
+    st.sidebar.write("✅ Red Flag Patterns Matched:", len([m for p in RED_FLAGS for m in re.findall(p, text, re.IGNORECASE)]))
+
     st.text_area("🔍 Text Preview", text[:1000])
 
     st.markdown("### 🆚 Document Comparison (Optional)")
@@ -178,23 +184,56 @@ if uploaded_file:
             st.text_area("Comparison Summary", diff_result, height=400)
 
     st.markdown("### 📄 Red Flags")
-    st.markdown(f"<div style='white-space: pre-wrap'>{highlight_red_flags(text)}</div>", unsafe_allow_html=True)
+    st.markdown("**Flagged Clauses:**")
+    flagged_clauses = []
+    for pattern in RED_FLAGS:
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            start = max(0, match.start() - 100)
+            end = min(len(text), match.end() + 100)
+            snippet = text[start:end].replace('\n', ' ')
+            flagged_clauses.append(f"🔺 ...{snippet}...")
+    for fc in flagged_clauses:
+        st.markdown(f"- {fc}")
 
     compensation_summary = ""
     benchmark_summary = ""
-    if document_type == "Offer Letter":
+    if "Offer Letter" in document_type:
         st.subheader("💰 Compensation Breakdown")
         compensation_summary = estimate_offer_compensation(text)
-        st.text_area("Estimated Compensation", compensation_summary, height=250)
+        if compensation_summary:
+            st.text_area("Estimated Compensation", compensation_summary, height=250)
+        else:
+            st.warning("⚠️ Could not estimate total compensation.")
+
+        st.subheader("📊 Compensation Benchmark")
+        benchmark_summary = benchmark_offer_compensation(text)
+        if benchmark_summary:
+            st.text_area("Benchmark Insights", benchmark_summary, height=250)
+        else:
+            st.warning("⚠️ Compensation benchmarking failed.")
+
         st.subheader("📊 Compensation Benchmark")
         benchmark_summary = benchmark_offer_compensation(text)
         st.text_area("Benchmark Insights", benchmark_summary, height=250)
 
     st.subheader("🔺 Red Flag Explanations")
     red_flags_text = ""
+    unique_flags = set()
     for pattern in RED_FLAGS:
-        matches = re.findall(pattern, text, re.IGNORECASE)
-        for match in matches:
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            term = match.group(0)
+            if term.lower() in unique_flags:
+                continue
+            unique_flags.add(term.lower())
+            st.markdown(f"**🔺 {term}**")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button(f"Explain: {term}", key=f"explain_{term}"):
+                    st.info(ask_gpt(f"Why is this a red flag: '{term}'?", model=model_choice))
+            with col2:
+                if st.button(f"Negotiate: {term}", key=f"negotiate_{term}"):
+                    st.success(ask_gpt(f"How to negotiate or improve: '{term}'?", model=model_choice))
+
             red_flags_text += f"❗ {match}\n"
             st.markdown(f"**{match}**")
             col1, col2 = st.columns(2)
@@ -222,13 +261,21 @@ if uploaded_file:
         summary[title] = result
 
     st.subheader("📊 Clause Benchmarking")
+    clauses = extract_clauses(text)
     clause_summaries = ""
-    for i, clause in enumerate(extract_clauses(text)[:10]):
-        with st.expander(f"Clause {i+1}"):
-            st.markdown(f"""**Clause Text:**\n\n{clause}""")
-            feedback = benchmark_clause_against_industry(clause, document_type)
-            st.markdown(f"""**Feedback:**\n\n{feedback}""")
-            clause_summaries += f"--- CLAUSE {i+1} ---\n{feedback}\n"
+
+    if not clauses:
+        st.warning("⚠️ No clauses extracted for benchmarking.")
+    else:
+        for i, clause in enumerate(clauses[:10]):
+            with st.expander(f"Clause {i+1}"):
+                st.markdown(f"**Clause Text:**\n\n{clause}")
+                try:
+                    feedback = benchmark_clause_against_industry(clause, document_type)
+                    st.markdown(f"**Feedback:**\n\n{feedback}")
+                    clause_summaries += f"--- CLAUSE {i+1} ---\n{feedback}\n"
+                except Exception as e:
+                    st.error(f"⚠️ GPT error during benchmarking: {e}")
 
     if st.session_state.previous_doc:
         st.subheader("📑 Previous vs Current Comparison")
@@ -250,6 +297,9 @@ if uploaded_file:
     for t, c in summary.items():
         doc_summary += f"--- {t.upper()} ---\n{c}\n"
     doc_summary += f"--- CLAUSE BENCHMARKING ---\n{clause_summaries}\n"
+    doc_summary += f"--- COMPENSATION ---\n{compensation_summary or '⚠️ No compensation data'}\n"
+    doc_summary += f"--- BENCHMARK ---\n{benchmark_summary or '⚠️ No benchmark data'}\n"
+
 
     st.session_state.doc_context = doc_summary
     save_as_pdf(doc_summary, "summary.pdf")
