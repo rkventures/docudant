@@ -243,6 +243,9 @@ if uploaded_file:
         "Smart Next Steps": f"What smart actions should be taken next?"
     }
 
+    st.markdown("---")
+    st.subheader("📄 Document Summary Sections")
+
     summary = {}
     for title, prompt in sections.items():
         result = ask_gpt(prompt + "\n\n" + text, model=model_choice)
