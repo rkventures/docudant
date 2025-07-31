@@ -321,4 +321,6 @@ if user_input and st.session_state.doc_context:
             st.session_state.chat_history.append({"role": "assistant", "content": answer})
             st.markdown(answer)
 
-st.markdown("---\n_Disclaimer: This summary is AI-generated and should not be considered legal advice._")
+st.markdown("___")  # triple underscore = horizontal rule
+st.markdown("_Disclaimer: This summary is AI-generated and should not be considered legal advice. Your document is not stored or used to train AI models. All processing is done securely via the OpenAI API._")
+
