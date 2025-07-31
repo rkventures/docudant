@@ -111,12 +111,13 @@ def ask_gpt(prompt, model="gpt-4", temperature=0.4):
 def save_as_pdf(text, filename):
     pdf = FPDF()
     pdf.add_page()
+    pdf.set_font("Arial", size=11)  # ✅ Consistent font
     pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_font("Arial", size=12)
-    for line in text.split('\n'):  # ✅ FIXED: Newline delimiter corrected
+    for line in text.split('\n'):
         safe = line.encode('latin-1', 'replace').decode('latin-1')
         pdf.multi_cell(0, 10, safe)
     pdf.output(filename, 'F')
+
 
 
 def estimate_offer_compensation(text):
@@ -166,9 +167,11 @@ if uploaded_file:
         st.stop()
 
     if debug_mode:
-    st.sidebar.write("✅ Text Length:", len(text))
-    st.sidebar.write("✅ Extracted Clauses:", len(extract_clauses(text)))
-    st.sidebar.write("✅ Red Flag Patterns Matched:", len([m for p in RED_FLAGS for m in re.findall(p, text, re.IGNORECASE)]))
+        st.sidebar.write("✅ Text Length:", len(text))
+        st.sidebar.write("✅ Extracted Clauses:", len(extract_clauses(text)))
+        st.sidebar.write("✅ Red Flag Patterns Matched:", len([
+            m for p in RED_FLAGS for m in re.findall(p, text, re.IGNORECASE)
+        ]))
 
     st.text_area("🔍 Text Preview", text[:1000])
 
@@ -212,10 +215,6 @@ if uploaded_file:
         else:
             st.warning("⚠️ Compensation benchmarking failed.")
 
-        st.subheader("📊 Compensation Benchmark")
-        benchmark_summary = benchmark_offer_compensation(text)
-        st.text_area("Benchmark Insights", benchmark_summary, height=250)
-
     st.subheader("🔺 Red Flag Explanations")
     red_flags_text = ""
     unique_flags = set()
@@ -233,16 +232,6 @@ if uploaded_file:
             with col2:
                 if st.button(f"Negotiate: {term}", key=f"negotiate_{term}"):
                     st.success(ask_gpt(f"How to negotiate or improve: '{term}'?", model=model_choice))
-
-            red_flags_text += f"❗ {match}\n"
-            st.markdown(f"**{match}**")
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button(f"Explain: {match}", key=f"explain_{match}"):
-                    st.info(ask_gpt(f"Why is this a red flag: '{match}'?", model=model_choice))
-            with col2:
-                if st.button(f"Negotiate: {match}", key=f"negotiate_{match}"):
-                    st.success(ask_gpt(f"How to negotiate or improve: '{match}'?", model=model_choice))
 
     sections = {
         "Parties & Roles": f"In this {document_type}, who are the involved parties and their roles?",
@@ -292,8 +281,6 @@ if uploaded_file:
     # ✅ This block must be indented
     doc_summary = f"Document Type: {document_type}\n\n"
     doc_summary += f"{red_flags_text}\n"
-    doc_summary += f"--- COMPENSATION ---\n{compensation_summary}\n"
-    doc_summary += f"--- BENCHMARK ---\n{benchmark_summary}\n"
     for t, c in summary.items():
         doc_summary += f"--- {t.upper()} ---\n{c}\n"
     doc_summary += f"--- CLAUSE BENCHMARKING ---\n{clause_summaries}\n"
